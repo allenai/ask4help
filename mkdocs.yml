@@ -1,0 +1,349 @@
+site_name: AllenAct
+site_description: An open source framework for research in Embodied-AI from AI2
+site_url: https://allenact.org
+
+theme:
+  name: material
+  custom_dir: overrides
+  palette:
+    primary: blue
+    accent: grey
+  logo: img/AI2_Avatar_White.png
+  favicon: img/AllenAct_A.svg
+  highlightjs: true
+  hljs_languages:
+  - python
+  - typescript
+  - json
+
+extra_css:
+- css/extra.css
+
+google_analytics: [UA-120916510-8, allenact.org]
+
+repo_name: allenai/allenact
+repo_url: https://github.com/allenai/allenact
+docs_dir: docs
+
+nav:
+- Overview: index.md
+- Installation:
+  - Install AllenAct: installation/installation-allenact.md
+  - Install environments: installation/installation-framework.md
+  - Download datasets: installation/download-datasets.md
+- Getting started:
+  - Run your first experiment: getting_started/running-your-first-experiment.md
+  - Primary abstractions: getting_started/abstractions.md
+  - Structure of the codebase: getting_started/structure.md
+- Tutorials:
+  - AllenAct Tutorials: tutorials/index.md
+  - Navigation in Minigrid: tutorials/minigrid-tutorial.md
+  - PointNav in RoboTHOR: tutorials/training-a-pointnav-model.md
+  - Swapping environments: tutorials/transfering-to-a-different-environment-framework.md
+  - Using a pre-trained model: tutorials/running-inference-on-a-pretrained-model.md
+  - Off-policy training: tutorials/offpolicy-tutorial.md
+  - OpenAI gym for continuous control: tutorials/gym-tutorial.md
+  - Multi-node ObjectNav training: tutorials/distributed-objectnav-tutorial.md
+  - OpenAI gym for MuJoCo tasks: tutorials/gym-mujoco-tutorial.md
+#  - IL to RL with pipelines: tutorials/training-pipelines.md
+- HowTos:
+  - Define an experiment: howtos/defining-an-experiment.md
+  - Change rewards and losses: howtos/changing-rewards-and-losses.md
+  - Define a new model: howtos/defining-a-new-model.md
+  - Define a new task: howtos/defining-a-new-task.md
+  - Define a new training pipeline: howtos/defining-a-new-training-pipeline.md
+  # - Visualize results: howtos/visualizing-results.md
+  # - Run a multi-agent experiment: howtos/running-a-multi-agent-experiment.md
+- Projects:
+  - BabyAI baselines: projects/babyai_baselines/README.md
+  - PointNav baselines: projects/pointnav_baselines/README.md
+  - ObjectNav baselines: projects/objectnav_baselines/README.md
+  # - Advisor code: projects/advisor_2020/README.md
+  # - Two Body Problem code: projects/two_body_problem_2019/README.md
+- FAQ: FAQ.md
+- Contributing: CONTRIBUTING.md
+- Licence: LICENSE.md
+- API:
+  - allenact:
+    - _constants: api/allenact/_constants.md
+    - embodiedai:
+      - mapping:
+        - mapping_utils:
+          - map_builders: api/allenact/embodiedai/mapping/mapping_utils/map_builders.md
+          - point_cloud_utils: api/allenact/embodiedai/mapping/mapping_utils/point_cloud_utils.md
+        - mapping_losses: api/allenact/embodiedai/mapping/mapping_losses.md
+        - mapping_models:
+          - active_neural_slam: api/allenact/embodiedai/mapping/mapping_models/active_neural_slam.md
+      - preprocessors:
+        - resnet: api/allenact/embodiedai/preprocessors/resnet.md
+      - sensors:
+        - vision_sensors: api/allenact/embodiedai/sensors/vision_sensors.md
+      - models:
+        - aux_models: api/allenact/embodiedai/models/aux_models.md
+        - basic_models: api/allenact/embodiedai/models/basic_models.md
+        - resnet: api/allenact/embodiedai/models/resnet.md
+        - fusion_models: api/allenact/embodiedai/models/fusion_models.md
+        - visual_nav_models: api/allenact/embodiedai/models/visual_nav_models.md
+      - aux_losses:
+        - losses: api/allenact/embodiedai/aux_losses/losses.md
+    - base_abstractions:
+      - experiment_config: api/allenact/base_abstractions/experiment_config.md
+      - misc: api/allenact/base_abstractions/misc.md
+      - task: api/allenact/base_abstractions/task.md
+      - sensor: api/allenact/base_abstractions/sensor.md
+      - preprocessor: api/allenact/base_abstractions/preprocessor.md
+      - distributions: api/allenact/base_abstractions/distributions.md
+    - algorithms:
+      - onpolicy_sync:
+        - losses:
+          - grouped_action_imitation: api/allenact/algorithms/onpolicy_sync/losses/grouped_action_imitation.md
+          - imitation: api/allenact/algorithms/onpolicy_sync/losses/imitation.md
+          - abstract_loss: api/allenact/algorithms/onpolicy_sync/losses/abstract_loss.md
+          - ppo: api/allenact/algorithms/onpolicy_sync/losses/ppo.md
+          - kfac: api/allenact/algorithms/onpolicy_sync/losses/kfac.md
+          - a2cacktr: api/allenact/algorithms/onpolicy_sync/losses/a2cacktr.md
+        - runner: api/allenact/algorithms/onpolicy_sync/runner.md
+        - policy: api/allenact/algorithms/onpolicy_sync/policy.md
+        - engine: api/allenact/algorithms/onpolicy_sync/engine.md
+        - vector_sampled_tasks: api/allenact/algorithms/onpolicy_sync/vector_sampled_tasks.md
+        - storage: api/allenact/algorithms/onpolicy_sync/storage.md
+      - offpolicy_sync:
+        - losses:
+          - abstract_offpolicy_loss: api/allenact/algorithms/offpolicy_sync/losses/abstract_offpolicy_loss.md
+    - utils:
+      - model_utils: api/allenact/utils/model_utils.md
+      - experiment_utils: api/allenact/utils/experiment_utils.md
+      - spaces_utils: api/allenact/utils/spaces_utils.md
+      - system: api/allenact/utils/system.md
+      - cacheless_frcnn: api/allenact/utils/cacheless_frcnn.md
+      - misc_utils: api/allenact/utils/misc_utils.md
+      - multi_agent_viz_utils: api/allenact/utils/multi_agent_viz_utils.md
+      - viz_utils: api/allenact/utils/viz_utils.md
+      - tensor_utils: api/allenact/utils/tensor_utils.md
+      - cache_utils: api/allenact/utils/cache_utils.md
+  - allenact_plugins:
+    - habitat_plugin:
+      - habitat_constants: api/allenact_plugins/habitat_plugin/habitat_constants.md
+      - habitat_tasks: api/allenact_plugins/habitat_plugin/habitat_tasks.md
+      - habitat_sensors: api/allenact_plugins/habitat_plugin/habitat_sensors.md
+      - habitat_environment: api/allenact_plugins/habitat_plugin/habitat_environment.md
+      - habitat_preprocessors: api/allenact_plugins/habitat_plugin/habitat_preprocessors.md
+      - habitat_task_samplers: api/allenact_plugins/habitat_plugin/habitat_task_samplers.md
+      - scripts:
+        - agent_demo: api/allenact_plugins/habitat_plugin/scripts/agent_demo.md
+        - make_map: api/allenact_plugins/habitat_plugin/scripts/make_map.md
+      - habitat_utils: api/allenact_plugins/habitat_plugin/habitat_utils.md
+    - lighthouse_plugin:
+      - lighthouse_models: api/allenact_plugins/lighthouse_plugin/lighthouse_models.md
+      - lighthouse_environment: api/allenact_plugins/lighthouse_plugin/lighthouse_environment.md
+      - lighthouse_tasks: api/allenact_plugins/lighthouse_plugin/lighthouse_tasks.md
+      - lighthouse_sensors: api/allenact_plugins/lighthouse_plugin/lighthouse_sensors.md
+      - lighthouse_util: api/allenact_plugins/lighthouse_plugin/lighthouse_util.md
+    - babyai_plugin:
+      - babyai_constants: api/allenact_plugins/babyai_plugin/babyai_constants.md
+      - babyai_models: api/allenact_plugins/babyai_plugin/babyai_models.md
+      - scripts:
+        - truncate_expert_demos: api/allenact_plugins/babyai_plugin/scripts/truncate_expert_demos.md
+        - get_instr_length_percentiles: api/allenact_plugins/babyai_plugin/scripts/get_instr_length_percentiles.md
+        - download_babyai_expert_demos: api/allenact_plugins/babyai_plugin/scripts/download_babyai_expert_demos.md
+      - babyai_tasks: api/allenact_plugins/babyai_plugin/babyai_tasks.md
+    - ithor_plugin:
+      - ithor_tasks: api/allenact_plugins/ithor_plugin/ithor_tasks.md
+      - ithor_environment: api/allenact_plugins/ithor_plugin/ithor_environment.md
+      - ithor_constants: api/allenact_plugins/ithor_plugin/ithor_constants.md
+      - ithor_util: api/allenact_plugins/ithor_plugin/ithor_util.md
+      - ithor_sensors: api/allenact_plugins/ithor_plugin/ithor_sensors.md
+      - scripts:
+        - make_objectnav_debug_dataset: api/allenact_plugins/ithor_plugin/scripts/make_objectnav_debug_dataset.md
+        - make_pointnav_debug_dataset: api/allenact_plugins/ithor_plugin/scripts/make_pointnav_debug_dataset.md
+      - ithor_viz: api/allenact_plugins/ithor_plugin/ithor_viz.md
+      - ithor_task_samplers: api/allenact_plugins/ithor_plugin/ithor_task_samplers.md
+    - robothor_plugin:
+      - robothor_preprocessors: api/allenact_plugins/robothor_plugin/robothor_preprocessors.md
+      - robothor_task_samplers: api/allenact_plugins/robothor_plugin/robothor_task_samplers.md
+      - robothor_environment: api/allenact_plugins/robothor_plugin/robothor_environment.md
+      - robothor_constants: api/allenact_plugins/robothor_plugin/robothor_constants.md
+      - robothor_distributions: api/allenact_plugins/robothor_plugin/robothor_distributions.md
+      - robothor_models: api/allenact_plugins/robothor_plugin/robothor_models.md
+      - robothor_tasks: api/allenact_plugins/robothor_plugin/robothor_tasks.md
+      - scripts:
+        - make_objectnav_debug_dataset: api/allenact_plugins/robothor_plugin/scripts/make_objectnav_debug_dataset.md
+        - make_pointnav_debug_dataset: api/allenact_plugins/robothor_plugin/scripts/make_pointnav_debug_dataset.md
+      - robothor_sensors: api/allenact_plugins/robothor_plugin/robothor_sensors.md
+      - robothor_viz: api/allenact_plugins/robothor_plugin/robothor_viz.md
+    - minigrid_plugin:
+      - minigrid_tasks: api/allenact_plugins/minigrid_plugin/minigrid_tasks.md
+      - minigrid_environments: api/allenact_plugins/minigrid_plugin/minigrid_environments.md
+      - minigrid_offpolicy: api/allenact_plugins/minigrid_plugin/minigrid_offpolicy.md
+      - minigrid_sensors: api/allenact_plugins/minigrid_plugin/minigrid_sensors.md
+      - configs:
+        - minigrid_nomemory: api/allenact_plugins/minigrid_plugin/configs/minigrid_nomemory.md
+      - minigrid_models: api/allenact_plugins/minigrid_plugin/minigrid_models.md
+    - manipulathor_plugin:
+      - manipulathor_viz: api/allenact_plugins/manipulathor_plugin/manipulathor_viz.md
+      - manipulathor_tasks: api/allenact_plugins/manipulathor_plugin/manipulathor_tasks.md
+      - manipulathor_task_samplers: api/allenact_plugins/manipulathor_plugin/manipulathor_task_samplers.md
+      - manipulathor_constants: api/allenact_plugins/manipulathor_plugin/manipulathor_constants.md
+      - armpointnav_constants: api/allenact_plugins/manipulathor_plugin/armpointnav_constants.md
+      - manipulathor_sensors: api/allenact_plugins/manipulathor_plugin/manipulathor_sensors.md
+      - arm_calculation_utils: api/allenact_plugins/manipulathor_plugin/arm_calculation_utils.md
+      - manipulathor_utils: api/allenact_plugins/manipulathor_plugin/manipulathor_utils.md
+      - manipulathor_environment: api/allenact_plugins/manipulathor_plugin/manipulathor_environment.md
+    - gym_plugin:
+      - gym_environment: api/allenact_plugins/gym_plugin/gym_environment.md
+      - gym_sensors: api/allenact_plugins/gym_plugin/gym_sensors.md
+      - gym_distributions: api/allenact_plugins/gym_plugin/gym_distributions.md
+      - gym_models: api/allenact_plugins/gym_plugin/gym_models.md
+      - gym_tasks: api/allenact_plugins/gym_plugin/gym_tasks.md
+  - constants: api/constants.md
+  - projects:
+    - gym_baselines:
+      - experiments:
+        - gym_base: api/projects/gym_baselines/experiments/gym_base.md
+        - gym_humanoid_base: api/projects/gym_baselines/experiments/gym_humanoid_base.md
+        - gym_mujoco_base: api/projects/gym_baselines/experiments/gym_mujoco_base.md
+        - gym_humanoid_ddppo: api/projects/gym_baselines/experiments/gym_humanoid_ddppo.md
+        - mujoco:
+          - gym_mujoco_swimmer_ddppo: api/projects/gym_baselines/experiments/mujoco/gym_mujoco_swimmer_ddppo.md
+          - gym_mujoco_reacher_ddppo: api/projects/gym_baselines/experiments/mujoco/gym_mujoco_reacher_ddppo.md
+          - gym_mujoco_walker2d_ddppo: api/projects/gym_baselines/experiments/mujoco/gym_mujoco_walker2d_ddppo.md
+          - gym_mujoco_halfcheetah_ddppo: api/projects/gym_baselines/experiments/mujoco/gym_mujoco_halfcheetah_ddppo.md
+          - gym_mujoco_humanoid_ddppo: api/projects/gym_baselines/experiments/mujoco/gym_mujoco_humanoid_ddppo.md
+          - gym_mujoco_inverteddoublependulum_ddppo: api/projects/gym_baselines/experiments/mujoco/gym_mujoco_inverteddoublependulum_ddppo.md
+          - gym_mujoco_ant_ddppo: api/projects/gym_baselines/experiments/mujoco/gym_mujoco_ant_ddppo.md
+          - gym_mujoco_hopper_ddppo: api/projects/gym_baselines/experiments/mujoco/gym_mujoco_hopper_ddppo.md
+          - gym_mujoco_invertedpendulum_ddppo: api/projects/gym_baselines/experiments/mujoco/gym_mujoco_invertedpendulum_ddppo.md
+        - gym_mujoco_ddppo: api/projects/gym_baselines/experiments/gym_mujoco_ddppo.md
+      - models:
+        - gym_models: api/projects/gym_baselines/models/gym_models.md
+    - objectnav_baselines:
+      - experiments:
+        - robothor:
+          - objectnav_robothor_base: api/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_base.md
+          - objectnav_robothor_rgb_resnetgru_ddppo: api/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_rgb_resnetgru_ddppo.md
+          - objectnav_robothor_rgb_resnetgru_dagger: api/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_rgb_resnetgru_dagger.md
+          - objectnav_robothor_rgbd_resnetgru_ddppo: api/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_rgbd_resnetgru_ddppo.md
+          - objectnav_robothor_rgb_resnetgru_ddppo_and_gbc: api/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_rgb_resnetgru_ddppo_and_gbc.md
+          - objectnav_robothor_rgb_unfrozenresnet_gru_ddppo: api/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_rgb_unfrozenresnet_gru_ddppo.md
+          - objectnav_robothor_depth_resnetgru_ddppo: api/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_depth_resnetgru_ddppo.md
+        - objectnav_mixin_unfrozenresnet_gru: api/projects/objectnav_baselines/experiments/objectnav_mixin_unfrozenresnet_gru.md
+        - ithor:
+          - objectnav_ithor_rgbd_resnetgru_ddppo: api/projects/objectnav_baselines/experiments/ithor/objectnav_ithor_rgbd_resnetgru_ddppo.md
+          - objectnav_ithor_depth_resnetgru_ddppo: api/projects/objectnav_baselines/experiments/ithor/objectnav_ithor_depth_resnetgru_ddppo.md
+          - objectnav_ithor_rgb_resnetgru_ddppo: api/projects/objectnav_baselines/experiments/ithor/objectnav_ithor_rgb_resnetgru_ddppo.md
+          - objectnav_ithor_base: api/projects/objectnav_baselines/experiments/ithor/objectnav_ithor_base.md
+        - objectnav_thor_mixin_ddppo_and_gbc: api/projects/objectnav_baselines/experiments/objectnav_thor_mixin_ddppo_and_gbc.md
+        - objectnav_thor_base: api/projects/objectnav_baselines/experiments/objectnav_thor_base.md
+        - objectnav_mixin_resnetgru: api/projects/objectnav_baselines/experiments/objectnav_mixin_resnetgru.md
+        - objectnav_base: api/projects/objectnav_baselines/experiments/objectnav_base.md
+        - objectnav_mixin_ddppo: api/projects/objectnav_baselines/experiments/objectnav_mixin_ddppo.md
+        - objectnav_mixin_dagger: api/projects/objectnav_baselines/experiments/objectnav_mixin_dagger.md
+      - models:
+        - object_nav_models: api/projects/objectnav_baselines/models/object_nav_models.md
+    - babyai_baselines:
+      - experiments:
+        - go_to_local:
+          - bc: api/projects/babyai_baselines/experiments/go_to_local/bc.md
+          - distributed_bc_offpolicy: api/projects/babyai_baselines/experiments/go_to_local/distributed_bc_offpolicy.md
+          - dagger: api/projects/babyai_baselines/experiments/go_to_local/dagger.md
+          - bc_teacher_forcing: api/projects/babyai_baselines/experiments/go_to_local/bc_teacher_forcing.md
+          - distributed_bc_teacher_forcing: api/projects/babyai_baselines/experiments/go_to_local/distributed_bc_teacher_forcing.md
+          - ppo: api/projects/babyai_baselines/experiments/go_to_local/ppo.md
+          - a2c: api/projects/babyai_baselines/experiments/go_to_local/a2c.md
+          - base: api/projects/babyai_baselines/experiments/go_to_local/base.md
+        - go_to_obj:
+          - bc: api/projects/babyai_baselines/experiments/go_to_obj/bc.md
+          - dagger: api/projects/babyai_baselines/experiments/go_to_obj/dagger.md
+          - bc_teacher_forcing: api/projects/babyai_baselines/experiments/go_to_obj/bc_teacher_forcing.md
+          - ppo: api/projects/babyai_baselines/experiments/go_to_obj/ppo.md
+          - a2c: api/projects/babyai_baselines/experiments/go_to_obj/a2c.md
+          - base: api/projects/babyai_baselines/experiments/go_to_obj/base.md
+        - base: api/projects/babyai_baselines/experiments/base.md
+    - pointnav_baselines:
+      - experiments:
+        - robothor:
+          - pointnav_robothor_rgbd_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/robothor/pointnav_robothor_rgbd_simpleconvgru_ddppo.md
+          - pointnav_robothor_depth_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/robothor/pointnav_robothor_depth_simpleconvgru_ddppo.md
+          - pointnav_robothor_rgb_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/robothor/pointnav_robothor_rgb_simpleconvgru_ddppo.md
+          - pointnav_robothor_rgb_simpleconvgru_ddppo_and_gbc: api/projects/pointnav_baselines/experiments/robothor/pointnav_robothor_rgb_simpleconvgru_ddppo_and_gbc.md
+          - pointnav_robothor_base: api/projects/pointnav_baselines/experiments/robothor/pointnav_robothor_base.md
+        - habitat:
+          - pointnav_habitat_rgb_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/habitat/pointnav_habitat_rgb_simpleconvgru_ddppo.md
+          - pointnav_habitat_rgbd_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/habitat/pointnav_habitat_rgbd_simpleconvgru_ddppo.md
+          - pointnav_habitat_base: api/projects/pointnav_baselines/experiments/habitat/pointnav_habitat_base.md
+          - debug_pointnav_habitat_rgbd_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/habitat/debug_pointnav_habitat_rgbd_simpleconvgru_ddppo.md
+          - debug_pointnav_habitat_rgb_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/habitat/debug_pointnav_habitat_rgb_simpleconvgru_ddppo.md
+          - debug_pointnav_habitat_rgb_simpleconvgru_bc: api/projects/pointnav_baselines/experiments/habitat/debug_pointnav_habitat_rgb_simpleconvgru_bc.md
+          - pointnav_habitat_depth_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/habitat/pointnav_habitat_depth_simpleconvgru_ddppo.md
+          - debug_pointnav_habitat_base: api/projects/pointnav_baselines/experiments/habitat/debug_pointnav_habitat_base.md
+        - pointnav_base: api/projects/pointnav_baselines/experiments/pointnav_base.md
+        - pointnav_habitat_mixin_ddppo: api/projects/pointnav_baselines/experiments/pointnav_habitat_mixin_ddppo.md
+        - ithor:
+          - pointnav_ithor_rgbd_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/ithor/pointnav_ithor_rgbd_simpleconvgru_ddppo.md
+          - pointnav_ithor_depth_simpleconvgru_ddppo_and_gbc: api/projects/pointnav_baselines/experiments/ithor/pointnav_ithor_depth_simpleconvgru_ddppo_and_gbc.md
+          - pointnav_ithor_rgb_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/ithor/pointnav_ithor_rgb_simpleconvgru_ddppo.md
+          - pointnav_ithor_base: api/projects/pointnav_baselines/experiments/ithor/pointnav_ithor_base.md
+          - pointnav_ithor_depth_simpleconvgru_ddppo: api/projects/pointnav_baselines/experiments/ithor/pointnav_ithor_depth_simpleconvgru_ddppo.md
+        - pointnav_mixin_simpleconvgru: api/projects/pointnav_baselines/experiments/pointnav_mixin_simpleconvgru.md
+        - pointnav_thor_mixin_ddppo: api/projects/pointnav_baselines/experiments/pointnav_thor_mixin_ddppo.md
+        - pointnav_thor_mixin_ddppo_and_gbc: api/projects/pointnav_baselines/experiments/pointnav_thor_mixin_ddppo_and_gbc.md
+        - pointnav_thor_base: api/projects/pointnav_baselines/experiments/pointnav_thor_base.md
+      - models:
+        - point_nav_models: api/projects/pointnav_baselines/models/point_nav_models.md
+    - tutorials:
+      - pointnav_habitat_rgb_ddppo: api/projects/tutorials/pointnav_habitat_rgb_ddppo.md
+      - object_nav_ithor_dagger_then_ppo_one_object: api/projects/tutorials/object_nav_ithor_dagger_then_ppo_one_object.md
+      - minigrid_offpolicy_tutorial: api/projects/tutorials/minigrid_offpolicy_tutorial.md
+      - navtopartner_robothor_rgb_ppo: api/projects/tutorials/navtopartner_robothor_rgb_ppo.md
+      - pointnav_ithor_rgb_ddppo: api/projects/tutorials/pointnav_ithor_rgb_ddppo.md
+      - object_nav_ithor_dagger_then_ppo_one_object_viz: api/projects/tutorials/object_nav_ithor_dagger_then_ppo_one_object_viz.md
+      - object_nav_ithor_ppo_one_object: api/projects/tutorials/object_nav_ithor_ppo_one_object.md
+      - minigrid_tutorial_conds: api/projects/tutorials/minigrid_tutorial_conds.md
+    - manipulathor_baselines:
+      - armpointnav_baselines:
+        - experiments:
+          - armpointnav_thor_base: api/projects/manipulathor_baselines/armpointnav_baselines/experiments/armpointnav_thor_base.md
+          - armpointnav_base: api/projects/manipulathor_baselines/armpointnav_baselines/experiments/armpointnav_base.md
+          - armpointnav_mixin_ddppo: api/projects/manipulathor_baselines/armpointnav_baselines/experiments/armpointnav_mixin_ddppo.md
+          - ithor:
+            - armpointnav_no_vision: api/projects/manipulathor_baselines/armpointnav_baselines/experiments/ithor/armpointnav_no_vision.md
+            - armpointnav_ithor_base: api/projects/manipulathor_baselines/armpointnav_baselines/experiments/ithor/armpointnav_ithor_base.md
+            - armpointnav_depth: api/projects/manipulathor_baselines/armpointnav_baselines/experiments/ithor/armpointnav_depth.md
+            - armpointnav_rgb: api/projects/manipulathor_baselines/armpointnav_baselines/experiments/ithor/armpointnav_rgb.md
+            - armpointnav_rgbdepth: api/projects/manipulathor_baselines/armpointnav_baselines/experiments/ithor/armpointnav_rgbdepth.md
+            - armpointnav_disjoint_depth: api/projects/manipulathor_baselines/armpointnav_baselines/experiments/ithor/armpointnav_disjoint_depth.md
+          - armpointnav_mixin_simplegru: api/projects/manipulathor_baselines/armpointnav_baselines/experiments/armpointnav_mixin_simplegru.md
+        - models:
+          - arm_pointnav_models: api/projects/manipulathor_baselines/armpointnav_baselines/models/arm_pointnav_models.md
+          - base_models: api/projects/manipulathor_baselines/armpointnav_baselines/models/base_models.md
+          - disjoint_arm_pointnav_models: api/projects/manipulathor_baselines/armpointnav_baselines/models/disjoint_arm_pointnav_models.md
+          - manipulathor_net_utils: api/projects/manipulathor_baselines/armpointnav_baselines/models/manipulathor_net_utils.md
+  - tests:
+    - mapping:
+      - test_ai2thor_mapping: api/tests/mapping/test_ai2thor_mapping.md
+    - multiprocessing:
+      - test_frozen_attribs: api/tests/multiprocessing/test_frozen_attribs.md
+    - utils:
+      - test_spaces: api/tests/utils/test_spaces.md
+    - vision:
+      - test_pillow_rescaling: api/tests/vision/test_pillow_rescaling.md
+    - sync_algs_cpu:
+      - test_to_to_obj_trains: api/tests/sync_algs_cpu/test_to_to_obj_trains.md
+    - manipulathor_plugin:
+      - test_utils: api/tests/manipulathor_plugin/test_utils.md
+    - hierarchical_policies:
+      - test_minigrid_conditional: api/tests/hierarchical_policies/test_minigrid_conditional.md
+markdown_extensions:
+- toc:
+    permalink: '#'
+- markdown.extensions.codehilite:
+    guess_lang: true
+- meta
+- admonition
+- codehilite
+
+# extra_javascript:
+#  - javascripts/extra.js
+#plugins:
+#  - search
+#  - mkpdfs

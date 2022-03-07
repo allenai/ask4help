@@ -1,0 +1,28 @@
+diff --git a/allenact/embodiedai/sensors/vision_sensors.py b/allenact/embodiedai/sensors/vision_sensors.py
+index 99560127..5ad37ae5 100644
+--- a/allenact/embodiedai/sensors/vision_sensors.py
++++ b/allenact/embodiedai/sensors/vision_sensors.py
+@@ -195,8 +195,8 @@ class RGBSensor(VisionSensor[EnvType, SubTaskType], ABC):
+     def __init__(
+         self,
+         use_resnet_normalization: bool = False,
+-        mean: Optional[Union[np.ndarray, Sequence[float]]] = RGBSensor.IMAGENET_RGB_MEANS,
+-        stdev: Optional[Union[np.ndarray, Sequence[float]]] = RGBSensor.IMAGENET_RGB_STDS,
++        mean: Optional[Union[np.ndarray, Sequence[float]]] = IMAGENET_RGB_MEANS,
++        stdev: Optional[Union[np.ndarray, Sequence[float]]] = IMAGENET_RGB_STDS,
+         height: Optional[int] = None,
+         width: Optional[int] = None,
+         uuid: str = "rgb",
+diff --git a/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_base.py b/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_base.py
+index 8480166b..1301a55b 100644
+--- a/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_base.py
++++ b/projects/objectnav_baselines/experiments/robothor/objectnav_robothor_base.py
+@@ -18,7 +18,7 @@ class ObjectNavRoboThorBaseConfig(ObjectNavThorBaseConfig, ABC):
+ 
+     AGENT_MODE = "locobot"
+ 
+-    DEFAULT_NUM_TRAIN_PROCESSES = 60 if torch.cuda.is_available() else 1
++    DEFAULT_NUM_TRAIN_PROCESSES = 1 if torch.cuda.is_available() else 1
+ 
+     TRAIN_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/train")
+     VAL_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/val")
