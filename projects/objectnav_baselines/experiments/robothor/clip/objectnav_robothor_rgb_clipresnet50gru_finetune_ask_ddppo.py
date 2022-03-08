@@ -157,7 +157,6 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             hidden_size=512,
             goal_dims=32,
             is_finetuned=True,
-            adapt_belief=True,
         )
 
 

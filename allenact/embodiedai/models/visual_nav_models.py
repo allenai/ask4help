@@ -399,17 +399,11 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
                 beliefs_residual = beliefs_residual*expert_action_mask.unsqueeze(-1)
 
-                # print (beliefs_residual.requires_grad,'residual')
-                # print (beliefs.requires_grad)
-
             with torch.no_grad():
 
-                beliefs = beliefs + beliefs_residual
-                # if beliefs_residual.requires_grad:
-                #     print (beliefs_residual.requires_grad,'here')
-                #     print (beliefs.requires_grad,'beliefs')
-                #     exit()
-                
+                if self.adapt_belief:
+                    beliefs = beliefs + beliefs_residual
+
                 actor_pred_distr = self.actor(beliefs)
 
                 if self.end_action_in_ask:
