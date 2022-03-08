@@ -437,17 +437,13 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 self.ask_actor_head = LinearActorHead(self._hidden_size+48,self.ask_action_space.n).to(beliefs.device) ## concatenating frozen beliefs with success prediction output
                 self.ask_critic_head = LinearCriticHead(self._hidden_size+48).to(beliefs.device)            
             
-            ##insert MLP
             
             ask_policy_input = self.ask_policy_mlp(ask_policy_input) ##remove for without mlp
 
-            # if self.ask_policy_gru_hidden_state is None:
-            #     self.ask_policy_gru_hidden_state = torch.zeros(1,nsamplers,128).to(beliefs.device)
-
             ask_policy_input,ask_hidden_states = self.ask_policy_gru(ask_policy_input,memory.tensor('ask4help_gru'),masks)
 
-            self.ask_policy_gru_hidden_state = ask_hidden_states.detach()
-            
+            memory.set_tensor('ask4help_gru', ask_hidden_states)
+
             ask_pred_distr = self.ask_actor_head(ask_policy_input)
             ask_pred_value = self.ask_critic_head(ask_policy_input)
 
