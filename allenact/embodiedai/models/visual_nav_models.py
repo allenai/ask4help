@@ -99,18 +99,13 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         self.succ_pred_rnn_hidden_state = None
         self.succ_pred_model = None
 
+        '''
         mlp_input_size = self._hidden_size+48+6 ## 6 for prev action embedding
         
         
-        self.prev_ask_action_embedder = FeatureEmbedding(
-            input_size=self.ask_action_space.n,
-            output_size=6,
-        )
-
-        '''
         self.ask_actor_head = LinearActorHead(mlp_input_size,self.ask_action_space.n) ## concatenating frozen beliefs with success prediction output
         self.ask_critic_head = LinearCriticHead(mlp_input_size) ## 6 for prev action embedding
-        '''
+        
 
         self.ask_policy_mlp = nn.Sequential(
             nn.Linear(mlp_input_size,mlp_input_size//2),
@@ -126,6 +121,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
         self.ask_actor_head = LinearActorHead(128,self.ask_action_space.n) ## concatenating frozen beliefs with success prediction output
         self.ask_critic_head = LinearCriticHead(128) 
+        '''
 
         self.end_action_idx = 3
         
@@ -191,6 +187,56 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             )
         )
 
+    def create_expert_encoder(self,
+        input_size: int,
+        prev_action_embed_size: int,
+        num_rnn_layers: int,
+        rnn_type: str,
+        trainable_masked_hidden_state=False,):
+
+        self.prev_expert_action_embedder = FeatureEmbedding(
+            input_size=self.nav_action_space.n,
+            output_size=prev_action_embed_size,
+        )
+
+        self.expert_encoder = RNNStateEncoder(input_size+prev_action_embed_size,
+            self._hidden_size,
+            num_layers=num_rnn_layers,
+            rnn_type=rnn_type,
+            trainable_masked_hidden_state=trainable_masked_hidden_state,
+            )
+
+    def create_ask4_help_module(self,
+        prev_action_embed_size: int,
+        num_rnn_layers: int,
+        rnn_type:str,
+        ask_gru_hidden_size=128,
+        trainable_masked_hidden_state=False,
+        ):
+
+        mlp_input_size = self._hidden_size+48+prev_action_embed_size ## 6 for prev action embedding
+
+        self.prev_ask_action_embedder = FeatureEmbedding(
+            input_size=self.ask_action_space.n,
+            output_size=prev_action_embed_size,
+        )
+
+        self.ask_policy_mlp = nn.Sequential(
+            nn.Linear(mlp_input_size,mlp_input_size//2),
+            nn.ReLU(),
+            nn.Linear(mlp_input_size//2,mlp_input_size//4),
+        )
+
+        self.ask_policy_gru = RNNStateEncoder(mlp_input_size//4,
+                    ask_gru_hidden_size,
+                    num_layers=num_rnn_layers,
+                    rnn_type="GRU",
+                    trainable_masked_hidden_state=False,)
+
+        self.ask_actor_head = LinearActorHead(ask_gru_hidden_size,self.ask_action_space.n) ## concatenating frozen beliefs with success prediction output
+        self.ask_critic_head = LinearCriticHead(ask_gru_hidden_size)            
+
+
     def load_state_dict(self, state_dict):
         new_state_dict = OrderedDict()
         for key in state_dict.keys():
@@ -229,15 +275,24 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
     @property
     def recurrent_hidden_state_size(self):
         """The recurrent hidden state size of a single model."""
-        return self._hidden_size
+
+        return {'single_belief':self._hidden_size,'residual_gru':self._hidden_size,'ask4help_gru':128,'succ_pred_gru':512}
+        # return self._hidden_size
 
     def _recurrent_memory_specification(self):
+
+        if self.is_finetuned:
+            self.belief_names.append('ask4help_gru')
+            self.belief_names.append('succ_pred_gru')
+
+        if self.adapt_belief:
+            self.belief_names.append('residual_gru')    
         return {
             memory_key: (
                 (
                     ("layer", self.num_recurrent_layers),
                     ("sampler", None),
-                    ("hidden", self.recurrent_hidden_state_size),
+                    ("hidden", self.recurrent_hidden_state_size[memory_key]),
                 ),
                 torch.float32,
             )
@@ -292,17 +347,17 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 # 2. use RNNs to get single/multiple beliefs
                 beliefs_dict = {}
                 for key, model in self.state_encoders.items():
+
                     beliefs_dict[key], rnn_hidden_states = model(
                         joint_embeds, memory.tensor(key), masks
                     )
-                    # exit()
+                    
                     memory.set_tensor(key, rnn_hidden_states)  # update memory here
 
                 # 3. fuse beliefs for multiple belief models
                 beliefs, task_weights = self.fuse_beliefs(
                     beliefs_dict, obs_embeds
                 )  # fused beliefs
-
 
                 # 4. prepare output
                 extras = (
@@ -335,6 +390,26 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 nsteps, nsamplers, _ = beliefs.shape
                 nactions = self.nav_action_space.n
 
+
+            if self.adapt_belief:
+                expert_action_embedding = self.prev_expert_action_embedder(expert_action)
+                res_input = torch.cat((beliefs,expert_action_embedding),dim=-1)
+                beliefs_residual,residual_hidden_states = self.expert_encoder(res_input,memory.tensor('residual_gru'),masks)
+                memory.set_tensor('residual_gru',residual_hidden_states)
+
+                beliefs_residual = beliefs_residual*expert_action_mask.unsqueeze(-1)
+
+                # print (beliefs_residual.requires_grad,'residual')
+                # print (beliefs.requires_grad)
+
+            with torch.no_grad():
+
+                beliefs = beliefs + beliefs_residual
+                # if beliefs_residual.requires_grad:
+                #     print (beliefs_residual.requires_grad,'here')
+                #     print (beliefs.requires_grad,'beliefs')
+                #     exit()
+                
                 actor_pred_distr = self.actor(beliefs)
 
                 if self.end_action_in_ask:
@@ -348,21 +423,19 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                     self.succ_pred_model.load_state_dict(
                         torch.load('./storage/best_auc_clip_run_belief_480_rollout_len.pt',
                                     map_location=beliefs.device))
-                if self.succ_pred_rnn_hidden_state is None:
-                    self.succ_pred_rnn_hidden_state = torch.zeros(1, nsamplers, 512).to(beliefs.device)
+                # if self.succ_pred_rnn_hidden_state is None:
+                #     self.succ_pred_rnn_hidden_state = torch.zeros(1, nsamplers, 512).to(beliefs.device)
 
-                succ_pred_out, succ_rnn_hidden_states = self.succ_pred_model(beliefs, self.succ_pred_rnn_hidden_state,masks)
-                self.succ_pred_rnn_hidden_state = succ_rnn_hidden_states
+                succ_pred_out, succ_rnn_hidden_states = self.succ_pred_model(beliefs, memory.tensor('succ_pred_gru'),masks)
+                memory.set_tensor('succ_pred_gru', succ_rnn_hidden_states)
                 succ_prob = torch.sigmoid(succ_pred_out)
 
                 succ_prob_inp = succ_prob.repeat(1,1,48)                
 
                 ask_policy_input = torch.cat((beliefs,succ_prob_inp),dim=-1)
                 
-
             prev_ask_action_embed = self.prev_ask_action_embedder(prev_actions['ask_action'])
             ask_policy_input = torch.cat((ask_policy_input,prev_ask_action_embed),dim=-1)
-
 
             if self.ask_actor_head is None:
                 print ('initialisation error')
@@ -374,10 +447,11 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             
             ask_policy_input = self.ask_policy_mlp(ask_policy_input) ##remove for without mlp
 
-            if self.ask_policy_gru_hidden_state is None:
-                self.ask_policy_gru_hidden_state = torch.zeros(1,nsamplers,128).to(beliefs.device)
+            # if self.ask_policy_gru_hidden_state is None:
+            #     self.ask_policy_gru_hidden_state = torch.zeros(1,nsamplers,128).to(beliefs.device)
 
-            ask_policy_input,ask_hidden_states = self.ask_policy_gru(ask_policy_input,self.ask_policy_gru_hidden_state,masks)
+            ask_policy_input,ask_hidden_states = self.ask_policy_gru(ask_policy_input,memory.tensor('ask4help_gru'),masks)
+
             self.ask_policy_gru_hidden_state = ask_hidden_states.detach()
             
             ask_pred_distr = self.ask_actor_head(ask_policy_input)

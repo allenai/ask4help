@@ -171,6 +171,7 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
         auxiliary_uuids: Optional[List[str]] = None,
         is_finetuned = False,
         end_action_in_ask=False,
+        adapt_belief = False,
         # custom params
         rgb_resnet_preprocessor_uuid: Optional[str] = None,
         depth_resnet_preprocessor_uuid: Optional[str] = None,
@@ -230,6 +231,20 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
         )
         self.is_finetuned = is_finetuned
         self.end_action_in_ask = end_action_in_ask
+        self.adapt_belief = adapt_belief
+
+        if self.is_finetuned:
+            self.create_ask4_help_module(prev_action_embed_size=action_embed_size,
+            num_rnn_layers=num_rnn_layers,
+            rnn_type=rnn_type,
+            )
+
+        if self.adapt_belief:
+            self.create_expert_encoder(input_size=self._hidden_size,
+            prev_action_embed_size=action_embed_size,
+            num_rnn_layers=num_rnn_layers,
+            rnn_type=rnn_type,
+            )
 
         self.train()
 

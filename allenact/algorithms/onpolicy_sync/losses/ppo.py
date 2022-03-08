@@ -152,6 +152,7 @@ class PPO(AbstractActorCriticLoss):
             {
                 "ppo_total": cast(torch.Tensor, total_loss).item(),
                 **{key: loss.item() for key, (loss, _) in losses.items()},
+                "returns": batch["returns"].mean().item(),
             },
             {key: float(value.mean().item()) for key, value in ratio_info.items()},
         )
