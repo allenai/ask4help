@@ -98,7 +98,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
         num_mini_batch = 1
         update_repeats = 4
         num_steps = 128//2
-        save_interval = 2500000
+        save_interval = 5000000
         log_interval = 10000 if torch.cuda.is_available() else 1
         gamma = 0.99
         use_gae = True
@@ -157,6 +157,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             hidden_size=512,
             goal_dims=32,
             is_finetuned=True,
+            adapt_belief=True,
         )
 
 
