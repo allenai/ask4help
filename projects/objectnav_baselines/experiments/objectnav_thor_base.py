@@ -262,6 +262,7 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
             "seed": seeds[process_ind] if seeds is not None else None,
             "deterministic_cudnn": deterministic_cudnn,
             "rewards_config": self.REWARD_CONFIG,
+            "adaptive_reward": self.ADAPTIVE_REWARD,
             "env_args": {**self.env_args(), **device_dict},
         }
 

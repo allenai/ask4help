@@ -67,7 +67,6 @@ class MultiAuxTaskNegEntropyLoss(AbstractActorCriticLoss):
             outputs,
         )
 
-
 class AuxiliaryLoss(AbstractActorCriticLoss):
     """Base class of auxiliary loss.
 
@@ -138,6 +137,110 @@ def _propagate_final_beliefs_to_all_steps(
 
     return final_beliefs, start_locs_list, end_locs_list
 
+
+class FrequencyLoss(AuxiliaryLoss):
+
+    """
+    Frequency loss to encourage contiguous chunks of help
+    """
+    UUID = "FreqLoss"
+
+    def __init__(self,*args,**kwargs):
+
+        super().__init__(auxiliary_uuid=self.UUID,**kwargs)
+
+    def get_aux_loss(
+        self,
+        aux_model: nn.Module,
+        observations: ObservationType,
+        obs_embeds: torch.FloatTensor,
+        ask_action_logits,
+        model_action_logits,
+        expert_actions,
+        prev_actions,
+        actions: torch.FloatTensor,
+        beliefs: torch.FloatTensor,
+        masks: torch.FloatTensor,
+        *args,
+        **kwargs):
+
+        nsteps,nsamplers,_ = ask_action_logits.shape
+
+        softmax_logits = torch.softmax(ask_action_logits,dim=-1)
+
+        loss = torch.zeros(nsteps,nsamplers).to(beliefs.device)
+
+        for step in range(nsteps):
+            for samp in range(nsamplers):
+                prev_action_idx = prev_actions['ask_action'][step,samp].item()
+
+                loss[step,samp] = 1-softmax_logits[step,samp,prev_action_idx]
+
+        num_valid_losses = masks.sum()
+        loss = loss.unsqueeze(-1)
+
+        loss = loss*masks
+        loss = loss.squeeze(-1)
+        
+        avg_loss = (loss.sum(0).sum(0)) / torch.clamp(num_valid_losses, min=1.0)
+
+        return (
+            avg_loss,
+            {"total": cast(torch.Tensor, avg_loss).item(),},
+        ) 
+
+class SupImitationLoss(AuxiliaryLoss):
+    """
+    Supervised Imitation Loss for adaptation from expert supervision
+    """
+
+    UUID = "IMITATION_ADAPT"
+
+    def __init__(self,*args,**kwargs):
+        super().__init__(auxiliary_uuid=self.UUID,**kwargs)
+        self.cross_entropy_loss = nn.CrossEntropyLoss(reduction='none')
+
+
+    def get_aux_loss(
+        self,
+        aux_model: nn.Module,
+        observations: ObservationType,
+        obs_embeds: torch.FloatTensor,
+        ask_action_logits,
+        model_action_logits,
+        expert_actions,
+        actions: torch.FloatTensor,
+        beliefs: torch.FloatTensor,
+        masks: torch.FloatTensor,
+        *args,
+        **kwargs):
+
+        ## add agent logits to extras dict.
+
+        nsteps,nsamplers,_ = ask_action_logits.shape
+
+        expert_action_masks = expert_actions[:,:,1]
+        expert_action_seq = expert_actions[:,:,0]
+
+        softmax_logits = torch.log_softmax(model_action_logits,dim=-1)
+        
+        softmax_logits = softmax_logits.view(nsteps*nsamplers,-1)
+        expert_action_seq = expert_action_seq.view(nsteps*nsamplers)
+
+        loss = self.cross_entropy_loss(softmax_logits,expert_action_seq)
+
+        loss = loss.view(nsteps,nsamplers)
+
+        num_valid_losses = expert_action_masks.sum()
+
+        loss = loss*expert_action_masks
+
+        avg_loss = (loss.sum(0).sum(0)) / torch.clamp(num_valid_losses, min=1.0)
+        
+        return (
+            avg_loss,
+            {"total": cast(torch.Tensor, avg_loss).item(),},
+        ) 
 
 class InverseDynamicsLoss(AuxiliaryLoss):
     """Auxiliary task of Inverse Dynamics from Auxiliary Tasks Speed Up

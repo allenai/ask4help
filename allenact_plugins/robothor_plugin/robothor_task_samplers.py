@@ -299,6 +299,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         env_args: Dict[str, Any],
         action_space: gym.Space,
         rewards_config: Dict,
+        adaptive_reward: bool = False,
         seed: Optional[int] = None,
         deterministic_cudnn: bool = False,
         loop_dataset: bool = True,
@@ -333,6 +334,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         self.sensors = sensors
         self.max_steps = max_steps
         self._action_space = action_space
+        self.adaptive_reward = adaptive_reward
         self.allow_flipping = allow_flipping
         self.scene_counter: Optional[int] = None
         self.scene_order: Optional[List[str]] = None
@@ -504,14 +506,73 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             horizon=episode.get("initial_horizon", 0),
         ):
             return self.next_task()
-        self._last_sampled_task = ObjectNavTask(
-            env=self.env,
-            sensors=self.sensors,
-            task_info=task_info,
-            max_steps=self.max_steps,
-            action_space=self._action_space,
-            reward_configs=self.rewards_config,
-        )
+
+        adaptive_configs_dict = {0: {
+        "step_penalty":            -0.01,
+        "goal_success_reward":      0.00,
+        "failed_stop_reward":      -10.00,
+        "shaping_weight":           0.00,
+        "penalty_for_init_ask":    -1.00, 
+        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
+        "penalty_for_step_ask":    -0.0,
+        },
+
+        1: {
+        "step_penalty":            -0.01,
+        "goal_success_reward":      0.00,
+        "failed_stop_reward":      -5.00,
+        "shaping_weight":           0.00,
+        "penalty_for_init_ask":    -1.00, 
+        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
+        "penalty_for_step_ask":    -0.0,
+        },
+
+        2: {
+        "step_penalty":            -0.01,
+        "goal_success_reward":      0.00,
+        "failed_stop_reward":      -2.50,
+        "shaping_weight":           0.00,
+        "penalty_for_init_ask":    -1.00, 
+        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
+        "penalty_for_step_ask":    -0.0,
+        },
+
+        3: {
+        "step_penalty":            -0.01,
+        "goal_success_reward":      0.00,
+        "failed_stop_reward":      -15.00,
+        "shaping_weight":           0.00,
+        "penalty_for_init_ask":    -1.00, 
+        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
+        "penalty_for_step_ask":    -0.0,
+        }} 
+
+        if self.adaptive_reward:
+            config_idx = random.choice([0,1,2,3])  
+            
+            rewards_config = adaptive_configs_dict[config_idx]
+
+            task_info['reward_config_idx'] = config_idx
+
+            self._last_sampled_task = ObjectNavTask(
+                env=self.env,
+                sensors=self.sensors,
+                task_info=task_info,
+                max_steps=self.max_steps,
+                action_space=self._action_space,
+                reward_configs=rewards_config,
+            )
+
+
+        else:    
+            self._last_sampled_task = ObjectNavTask(
+                env=self.env,
+                sensors=self.sensors,
+                task_info=task_info,
+                max_steps=self.max_steps,
+                action_space=self._action_space,
+                reward_configs=self.rewards_config,
+            )
         return self._last_sampled_task
 
     def reset(self):

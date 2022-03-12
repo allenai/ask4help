@@ -18,6 +18,7 @@ from allenact.embodiedai.aux_losses.losses import (
     CPCA4Loss,
     CPCA8Loss,
     CPCA16Loss,
+    FrequencyLoss,
 )
 
 # noinspection PyUnresolvedReferences
@@ -46,6 +47,7 @@ class ObjectNavMixInPPOConfig(ObjectNavBaseConfig):
         # CPCA4Loss.UUID,
         # CPCA8Loss.UUID,
         # CPCA16Loss.UUID,
+        # FrequencyLoss.UUID
     ]
 
     ADD_PREV_ACTIONS = False
@@ -138,6 +140,10 @@ class ObjectNavMixInPPOConfig(ObjectNavBaseConfig):
             CPCA16Loss.UUID: (
                 CPCA16Loss(subsample_rate=0.2,),  # TODO: test its effects
                 0.05 * aux_loss_total_weight,  # should times 2
+            ),
+            FrequencyLoss.UUID : (
+                FrequencyLoss(),
+                0.05*aux_loss_total_weight,
             ),
         }
         named_losses.update(

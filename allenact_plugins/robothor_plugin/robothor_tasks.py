@@ -275,6 +275,22 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         ask_action = action['ask_action']
         ask_action = cast(int,ask_action)
 
+        if ask_action==0:
+            # print ('expert takes step')
+            ask_action_str = 'start_asking'
+            self.agent_asked_for_help = True 
+            self.help_asked_at_all = True
+            self.expert_action_span+=1
+
+        if ask_action==1:
+            # print ('agent takes step')  
+            ask_action_str = 'stop_asking'  
+            self.agent_asked_for_help = False 
+            self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
+            self.expert_action_span = 0 ##reset counter  
+
+
+        '''    
         if ask_action==1:
             # print ('start asking for help')
             self.agent_asked_for_help = True
@@ -302,6 +318,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             # self.last_action_success = self._success
             self.agent_asked_for_help = False
             action_str = END
+        '''   
                 
 
         action = action['nav_action']
@@ -410,6 +427,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
         reward += self.shaping()
 
+        '''
         if self.help_asked_at_all and (self.asked_init_help_flag is False):
             # print ('give initial ask penalty')
             if not self.penalty_given_once:
@@ -420,6 +438,12 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 # print ('given recurring')
                 reward += self.reward_configs['penalty_for_ask_recurring']    
             self.asked_init_help_flag = True
+        '''
+         ## for 2 actions
+        if self.help_asked_at_all:
+            if not self.penalty_given_once:
+                reward += self.reward_configs['penalty_for_init_ask']
+                self.penalty_given_once = True     
            
         if self.agent_asked_for_help:
             # print ('step ask penalty')

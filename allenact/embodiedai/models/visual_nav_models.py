@@ -212,15 +212,27 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         rnn_type:str,
         ask_gru_hidden_size=128,
         trainable_masked_hidden_state=False,
+        adaptive_reward=False,
         ):
-
-        mlp_input_size = self._hidden_size+48+prev_action_embed_size ## 6 for prev action embedding
 
         self.prev_ask_action_embedder = FeatureEmbedding(
             input_size=self.ask_action_space.n,
             output_size=prev_action_embed_size,
         )
 
+        self.expert_mask_embedder = FeatureEmbedding(input_size=2,output_size=prev_action_embed_size)
+
+        if adaptive_reward:
+            self.reward_function_embedder = FeatureEmbedding(input_size=4,output_size=prev_action_embed_size*2)
+        else:
+            self.reward_function_embedder = None     
+
+        if adaptive_reward:
+            mlp_input_size = self._hidden_size + 48 + prev_action_embed_size + prev_action_embed_size + prev_action_embed_size*2 
+            ## ask_action + expert_action embedding + reward_function_embed
+        else:
+            mlp_input_size = self._hidden_size + 48 + prev_action_embed_size + prev_action_embed_size 
+                
         self.ask_policy_mlp = nn.Sequential(
             nn.Linear(mlp_input_size,mlp_input_size//2),
             nn.ReLU(),
@@ -350,30 +362,48 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 nsteps,nsamplers,_ = obs_embeds.shape
 
                 prev_actions_embeds = self.prev_action_embedder(prev_actions['nav_action'])
-                joint_embeds_all = torch.cat((obs_embeds, prev_actions_embeds), dim=-1)  # (T, N, *)
+                joint_embeds = torch.cat((obs_embeds, prev_actions_embeds), dim=-1)  # (T, N, *)
+                if not self.adapt_belief:
 
-            beliefs_combined = None
-            for step in range(nsteps):    
-                # 1.2 use embedding model to get prev_action embeddings
-                joint_embeds = joint_embeds_all[step,:,:].unsqueeze(0)
-                masks_step = masks[step,:,:].unsqueeze(0)
-                
-                # 2. use RNNs to get single/multiple beliefs
-                with torch.no_grad():
                     beliefs_dict = {}
                     for key, model in self.state_encoders.items():
                         beliefs_dict[key], rnn_hidden_states = model(
-                            joint_embeds, memory.tensor(key), masks_step
+                            joint_embeds, memory.tensor(key), masks
                         )
-                        
                         memory.set_tensor(key, rnn_hidden_states)  # update memory here
                 
                     # 3. fuse beliefs for multiple belief models
                     beliefs, task_weights = self.fuse_beliefs(
                         beliefs_dict, obs_embeds
-                    )  # fused beliefs
-                
-                if self.adapt_belief:
+                    )
+                    beliefs_combined = beliefs
+
+
+            if self.adapt_belief:
+                ### only done when adaptation is switched on###
+                joint_embeds_all = torch.cat((obs_embeds, prev_actions_embeds), dim=-1)
+                beliefs_combined = None
+                for step in range(nsteps):    
+                    # 1.2 use embedding model to get prev_action embeddings
+                    joint_embeds = joint_embeds_all[step,:,:].unsqueeze(0)
+                    masks_step = masks[step,:,:].unsqueeze(0)
+                    
+                    # 2. use RNNs to get single/multiple beliefs
+                    with torch.no_grad():
+                        beliefs_dict = {}
+                        for key, model in self.state_encoders.items():
+                            beliefs_dict[key], rnn_hidden_states = model(
+                                joint_embeds, memory.tensor(key), masks_step
+                            )
+                            
+                            memory.set_tensor(key, rnn_hidden_states)  # update memory here
+                    
+                        # 3. fuse beliefs for multiple belief models
+                        beliefs, task_weights = self.fuse_beliefs(
+                            beliefs_dict, obs_embeds
+                        )  # fused beliefs
+                    
+                    
                     expert_action_embedding = self.prev_expert_action_embedder(expert_action[step,:].unsqueeze(0))
                     res_input = torch.cat((beliefs,expert_action_embedding),dim=-1)
                     beliefs_residual,residual_hidden_states = self.expert_encoder(res_input,memory.tensor('residual_gru'),masks_step)
@@ -390,29 +420,9 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
                     memory.set_tensor('single_belief',beliefs)
                  
-            # 4. prepare output
-            extras = (
-                {
-                    aux_uuid: {
-                        "beliefs": (
-                            beliefs_dict[aux_uuid] if self.multiple_beliefs else beliefs_combined
-                        ),
-                        "obs_embeds": obs_embeds,
-                        "aux_model": (
-                            self.aux_models[aux_uuid]
-                            if aux_uuid in self.aux_models
-                            else None
-                        ),
-                    }
-                    for aux_uuid in self.auxiliary_uuids
-                }
-                if self.auxiliary_uuids is not None
-                else {}
-            )
+            
 
-            if self.multiple_beliefs:
-                extras[MultiAuxTaskNegEntropyLoss.UUID] = task_weights
-
+            
             beliefs = beliefs_combined
 
             with torch.no_grad():
@@ -439,7 +449,14 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 ask_policy_input = torch.cat((beliefs,succ_prob_inp),dim=-1)
                 
             prev_ask_action_embed = self.prev_ask_action_embedder(prev_actions['ask_action'])
-            ask_policy_input = torch.cat((ask_policy_input,prev_ask_action_embed),dim=-1)
+            expert_mask_embed = self.expert_mask_embedder(expert_action_mask)
+
+            if self.adaptive_reward:
+                reward_config_embed = self.reward_function_embedder(observations['reward_config_sensor'])
+                
+                ask_policy_input = torch.cat((ask_policy_input,prev_ask_action_embed,expert_mask_embed,reward_config_embed),dim=-1)
+            else:
+                ask_policy_input = torch.cat((ask_policy_input,prev_ask_action_embed,expert_mask_embed),dim=-1)
 
             if self.ask_actor_head is None:
                 print ('initialisation error')
@@ -470,6 +487,34 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             actor_distr = CategoricalDistr(logits=action_logits)
 
             output_distr = MultiDimActionDistr(actor_distr, ask_pred_distr)
+
+            # 4. prepare output
+            extras = (
+                {
+                    aux_uuid: {
+                        "beliefs": (
+                            beliefs_dict[aux_uuid] if self.multiple_beliefs else beliefs_combined
+                        ),
+                        "obs_embeds": obs_embeds,
+                        "ask_action_logits":ask_pred_distr.logits,
+                        "model_action_logits":actor_pred_distr.logits,
+                        "expert_actions":observations['expert_action'],
+                        "prev_actions":prev_actions,
+                        "aux_model": (
+                            self.aux_models[aux_uuid]
+                            if aux_uuid in self.aux_models
+                            else None
+                        ),
+                    }
+                    for aux_uuid in self.auxiliary_uuids
+                }
+                if self.auxiliary_uuids is not None
+                else {}
+            )
+
+            if self.multiple_beliefs:
+                extras[MultiAuxTaskNegEntropyLoss.UUID] = task_weights
+
 
             actor_critic_output = ActorCriticOutput(
                 distributions=output_distr,
