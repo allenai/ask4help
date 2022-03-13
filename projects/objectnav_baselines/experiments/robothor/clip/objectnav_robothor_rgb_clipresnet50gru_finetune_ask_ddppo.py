@@ -1,7 +1,13 @@
+from typing import Dict, Tuple
+
 from allenact_plugins.clip_plugin.clip_preprocessors import ClipResNetPreprocessor
 from allenact_plugins.ithor_plugin.ithor_sensors import (
     RGBSensorThor,
     GoalObjectTypeThorSensor,
+)
+
+from allenact.algorithms.onpolicy_sync.losses.abstract_loss import (
+    AbstractActorCriticLoss,
 )
 
 from allenact.base_abstractions.sensor import ExpertActionSensor
