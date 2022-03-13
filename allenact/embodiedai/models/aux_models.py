@@ -65,7 +65,7 @@ class AuxiliaryModel(nn.Module):
 
         elif FrequencyLoss.UUID in self.aux_uuid:
             pass 
-        elif supervised_imitation_loss.UUID in self.aux_uuid:
+        elif SupImitationLoss.UUID in self.aux_uuid:
             pass       
         else:
             raise ValueError("Unknown Auxiliary Loss UUID")
