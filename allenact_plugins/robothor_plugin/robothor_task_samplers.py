@@ -574,7 +574,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             else:
                 config_idx = 15.0
 
-            rewards_config['failed_stop_reward'] = config_idx
+            rewards_config['failed_stop_reward'] = -1*config_idx ### -1 is important
             '''
             config_idx = np.random.choice(4,1,p=[0.25,0.25,0.25,0.25])[0]
             
