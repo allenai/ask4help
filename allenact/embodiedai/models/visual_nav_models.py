@@ -223,7 +223,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         self.expert_mask_embedder = FeatureEmbedding(input_size=2,output_size=prev_action_embed_size)
 
         if adaptive_reward:
-            self.reward_function_embedder = FeatureEmbedding(input_size=4,output_size=prev_action_embed_size*2)
+            self.reward_function_embedder = FeatureEmbedding(input_size=13,output_size=prev_action_embed_size*2)
         else:
             self.reward_function_embedder = None     
 
@@ -452,8 +452,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             expert_mask_embed = self.expert_mask_embedder(expert_action_mask)
 
             if self.adaptive_reward:
-                reward_config_embed = self.reward_function_embedder(observations['reward_config_sensor'])
-                
+                reward_config_embed = self.reward_function_embedder(observations['reward_config_sensor'])                
                 ask_policy_input = torch.cat((ask_policy_input,prev_ask_action_embed,expert_mask_embed,reward_config_embed),dim=-1)
             else:
                 ask_policy_input = torch.cat((ask_policy_input,prev_ask_action_embed,expert_mask_embed),dim=-1)

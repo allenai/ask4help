@@ -287,6 +287,7 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
         res["loop_dataset"] = True
         res["allow_flipping"] = True
         res["randomize_materials_in_training"] = self.randomize_train_materials
+        res['task_mode'] = 'Train'
         return res
 
     def valid_task_sampler_args(
@@ -309,6 +310,7 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
         )
         res["scene_directory"] = self.VAL_DATASET_DIR
         res["loop_dataset"] = False
+        res['task_mode'] = 'Valid'
         return res
 
     def test_task_sampler_args(
@@ -357,4 +359,5 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
             res["rewards_config"] = {**res["rewards_config"], "shaping_weight": 0}
             res["scene_directory"] = self.TEST_DATASET_DIR
             res["loop_dataset"] = False
+            res['task_mode'] = 'Test'
             return res

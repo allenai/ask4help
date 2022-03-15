@@ -5,6 +5,7 @@ import random
 from typing import List, Optional, Union, Dict, Any, cast, Tuple
 
 import gym
+import numpy as np
 
 from allenact.base_abstractions.sensor import Sensor
 from allenact.base_abstractions.task import TaskSampler
@@ -303,6 +304,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         seed: Optional[int] = None,
         deterministic_cudnn: bool = False,
         loop_dataset: bool = True,
+        task_mode: str = 'Train',
         allow_flipping=False,
         env_class=RoboThorEnvironment,
         randomize_materials_in_training: bool = False,
@@ -311,6 +313,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         self.rewards_config = rewards_config
         self.env_args = env_args
         self.scenes = scenes
+        self.task_mode = task_mode
         self.episodes = {
             scene: ObjectNavDatasetTaskSampler.load_dataset(
                 scene, scene_directory + "/episodes"
@@ -547,13 +550,39 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         "penalty_for_step_ask":    -0.0,
         }} 
 
+        
+
         if self.adaptive_reward:
-            config_idx = random.choice([0,1,2,3])  
+
+            rewards_config = {
+            "step_penalty":            -0.01,
+            "goal_success_reward":      0.00,
+            "failed_stop_reward":      -15.00,
+            "shaping_weight":           0.00,
+            "penalty_for_init_ask":    -1.00, 
+            "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
+            "penalty_for_step_ask":    -0.0,
+            }
+
+            failed_stop_configs = list(np.linspace(0,30,num=13,endpoint=True)) ##trying 13 different reward different configs
+
+            probs = [1/len(failed_stop_configs)]*len(failed_stop_configs)
+
+            if self.task_mode == 'Train':
+                config_idx = np.random.choice(failed_stop_configs,1,p=probs)[0]
+                
+            else:
+                config_idx = 15.0
+
+            rewards_config['failed_stop_reward'] = config_idx
+            '''
+            config_idx = np.random.choice(4,1,p=[0.25,0.25,0.25,0.25])[0]
             
             rewards_config = adaptive_configs_dict[config_idx]
-
-            task_info['reward_config_idx'] = config_idx
-
+            '''
+            
+            task_info['reward_config_idx'] = failed_stop_configs.index(config_idx)
+            
             self._last_sampled_task = ObjectNavTask(
                 env=self.env,
                 sensors=self.sensors,
