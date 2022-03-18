@@ -237,6 +237,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.task_info["followed_path"] = [self.env.agent_state()]
         self.task_info["taken_actions"] = []
         self.task_info["action_names"] = self.class_action_names()
+        self.task_info["taken_ask_actions"] = []
 
         if self._all_metadata_available:
             self.last_geodesic_distance = self.env.distance_to_object_type(
@@ -337,6 +338,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 action_str = ROTATE_RIGHT
 
         self.task_info["taken_actions"].append(action_str)
+        self.task_info["taken_ask_actions"].append(ask_action_str)
 
         
         if action_str == END:

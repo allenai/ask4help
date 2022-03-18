@@ -570,7 +570,6 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
 
             if self.task_mode == 'Train':
                 config_idx = np.random.choice(failed_stop_configs,1,p=probs)[0]
-                
             else:
                 config_idx = 15.0
 
