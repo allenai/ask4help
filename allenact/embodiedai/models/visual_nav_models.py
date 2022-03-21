@@ -402,6 +402,11 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                         beliefs, task_weights = self.fuse_beliefs(
                             beliefs_dict, obs_embeds
                         )  # fused beliefs
+
+                        if beliefs_combined is None:
+                            beliefs_combined = beliefs
+                        else:
+                            beliefs_combined = torch.cat((beliefs_combined,beliefs),dim=0)
                     
                     
                     expert_action_embedding = self.prev_expert_action_embedder(expert_action[step,:].unsqueeze(0))
@@ -413,15 +418,13 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
                     beliefs = beliefs + beliefs_residual
 
-                    if beliefs_combined is None:
-                        beliefs_combined = beliefs
-                    else:
-                        beliefs_combined = torch.cat((beliefs_combined,beliefs),dim=0)    
+                    # if beliefs_combined is None:
+                    #     beliefs_combined = beliefs
+                    # else:
+                    #     beliefs_combined = torch.cat((beliefs_combined,beliefs),dim=0)    
 
                     memory.set_tensor('single_belief',beliefs)
                  
-            
-
             
             beliefs = beliefs_combined
 
