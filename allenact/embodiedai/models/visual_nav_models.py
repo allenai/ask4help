@@ -223,7 +223,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         self.expert_mask_embedder = FeatureEmbedding(input_size=2,output_size=prev_action_embed_size)
 
         if adaptive_reward:
-            self.reward_function_embedder = FeatureEmbedding(input_size=13,output_size=prev_action_embed_size*2)
+            self.reward_function_embedder = FeatureEmbedding(input_size=42,output_size=prev_action_embed_size*2)
         else:
             self.reward_function_embedder = None     
 
@@ -424,7 +424,6 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                     #     beliefs_combined = torch.cat((beliefs_combined,beliefs),dim=0)    
 
                     memory.set_tensor('single_belief',beliefs)
-                 
             
             beliefs = beliefs_combined
 

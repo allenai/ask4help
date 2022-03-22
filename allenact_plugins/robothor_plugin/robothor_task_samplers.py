@@ -2,6 +2,7 @@ import copy
 import gzip
 import json
 import random
+import itertools
 from typing import List, Optional, Union, Dict, Any, cast, Tuple
 
 import gym
@@ -510,77 +511,49 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         ):
             return self.next_task()
 
-        adaptive_configs_dict = {0: {
-        "step_penalty":            -0.01,
-        "goal_success_reward":      0.00,
-        "failed_stop_reward":      -10.00,
-        "shaping_weight":           0.00,
-        "penalty_for_init_ask":    -1.00, 
-        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-        "penalty_for_step_ask":    -0.0,
-        },
-
-        1: {
-        "step_penalty":            -0.01,
-        "goal_success_reward":      0.00,
-        "failed_stop_reward":      -5.00,
-        "shaping_weight":           0.00,
-        "penalty_for_init_ask":    -1.00, 
-        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-        "penalty_for_step_ask":    -0.0,
-        },
-
-        2: {
-        "step_penalty":            -0.01,
-        "goal_success_reward":      0.00,
-        "failed_stop_reward":      -2.50,
-        "shaping_weight":           0.00,
-        "penalty_for_init_ask":    -1.00, 
-        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-        "penalty_for_step_ask":    -0.0,
-        },
-
-        3: {
-        "step_penalty":            -0.01,
-        "goal_success_reward":      0.00,
-        "failed_stop_reward":      -15.00,
-        "shaping_weight":           0.00,
-        "penalty_for_init_ask":    -1.00, 
-        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-        "penalty_for_step_ask":    -0.0,
-        }} 
-
         
-
         if self.adaptive_reward:
 
             rewards_config = {
-            "step_penalty":            -0.01,
+            "step_penalty":            -0.0,
             "goal_success_reward":      0.00,
             "failed_stop_reward":      -15.00,
             "shaping_weight":           0.00,
             "penalty_for_init_ask":    -1.00, 
-            "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-            "penalty_for_step_ask":    -0.0,
+            "penalty_for_step_ask":    -0.01,
             }
 
-            failed_stop_configs = list(np.linspace(0,30,num=13,endpoint=True)) ##trying 13 different reward different configs
+            
+            init_asked_configs = list(np.linspace(0,5,num=6,endpoint=True))
+            
+            failed_stop_configs = list(np.linspace(0,15,num=7,endpoint=True)) ##trying 13 different reward different configs
+            
+            ##change adaptive reward embedding size in visual_nav_models.py
+            
+            all_configs = [init_asked_configs,failed_stop_configs]
+            combined_configs = list(itertools.product(*all_configs))
 
-            probs = [1/len(failed_stop_configs)]*len(failed_stop_configs)
+            probs = [1/len(combined_configs)]*len(combined_configs)
 
             if self.task_mode == 'Train':
-                config_idx = np.random.choice(failed_stop_configs,1,p=probs)[0]
+                config_idx = np.random.choice(np.arange(len(combined_configs)),1,p=probs)[0]
+                reward = combined_configs[config_idx]
+                init_ask,failed_stop = -1*reward[0],-1*reward[1]
             else:
-                config_idx = 15.0
+                # config_idx = 15.0
+                failed_stop = -15.0
+                init_ask = -1.0
 
-            rewards_config['failed_stop_reward'] = -1*config_idx ### -1 is important
+            
+            rewards_config['failed_stop_reward'] = failed_stop #-1*config_idx ### -1 is important
+            rewards_config['penalty_for_init_ask'] = init_ask
+
             '''
             config_idx = np.random.choice(4,1,p=[0.25,0.25,0.25,0.25])[0]
-            
             rewards_config = adaptive_configs_dict[config_idx]
             '''
             
-            task_info['reward_config_idx'] = failed_stop_configs.index(config_idx)
+            task_info['reward_config_idx'] = config_idx #failed_stop_configs.index(config_idx)
             
             self._last_sampled_task = ObjectNavTask(
                 env=self.env,
