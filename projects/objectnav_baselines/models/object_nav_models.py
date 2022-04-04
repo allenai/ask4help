@@ -172,7 +172,12 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
         is_finetuned = False,
         end_action_in_ask=False,
         adapt_belief = False,
+        adapt_policy = False,
+        adapt_visual = False,
+        tethered_policy_memory = False,
         adaptive_reward=False,
+        scenes_list : Optional[str] = None,
+        objects_list: Optional[str] = None,
         # custom params
         rgb_resnet_preprocessor_uuid: Optional[str] = None,
         depth_resnet_preprocessor_uuid: Optional[str] = None,
@@ -231,9 +236,21 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
             action_embed_size=action_embed_size,
         )
         self.is_finetuned = is_finetuned
+
+        param_list = []
+        if self.is_finetuned:
+            for name,W in self.named_parameters():
+                param_list.append(name)
+
+
         self.end_action_in_ask = end_action_in_ask
         self.adapt_belief = adapt_belief
         self.adaptive_reward = adaptive_reward
+        self.adapt_policy = adapt_policy
+        self.adapt_visual = adapt_visual
+        self.scenes_list = scenes_list
+        self.objects_list = objects_list
+        self.tethered_policy_memory = tethered_policy_memory
 
         if self.is_finetuned:
             self.create_ask4_help_module(prev_action_embed_size=action_embed_size,
@@ -248,8 +265,22 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
             num_rnn_layers=num_rnn_layers,
             rnn_type=rnn_type,
             )
+        if self.adapt_policy:
+            self.create_action_residual_model(input_size=self._hidden_size,
+            prev_action_embed_size=action_embed_size,
+            num_rnn_layers=num_rnn_layers,
+            rnn_type=rnn_type,
+            )  
+
+        if self.adapt_visual:
+            self.create_visual_residual_model(input_size=self._hidden_size,prev_action_embed_size=action_embed_size)      
 
         self.train()
+
+        if self.is_finetuned:
+            self.set_grad_false(param_list)
+
+
 
     @property
     def is_blind(self) -> bool:

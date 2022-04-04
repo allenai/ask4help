@@ -1,10 +1,16 @@
 from typing import Dict, Tuple
+import os,glob
 
 from allenact_plugins.clip_plugin.clip_preprocessors import ClipResNetPreprocessor
 from allenact_plugins.ithor_plugin.ithor_sensors import (
     RGBSensorThor,
     GoalObjectTypeThorSensor,
 )
+
+from allenact_plugins.robothor_plugin.robothor_sensors import (
+    SceneNameSensor
+)
+import numpy as np
 
 from allenact.algorithms.onpolicy_sync.losses.abstract_loss import (
     AbstractActorCriticLoss,
@@ -81,6 +87,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             object_types=ObjectNavRoboThorBaseConfig.TARGET_TYPES,
         ),
         ExpertActionSensor(nactions=len(ObjectNavTask.class_action_names()), ),
+        SceneNameSensor()
     ]
 
     AUXILIARY_UUIDS = [
@@ -109,7 +116,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
         self.REWARD_CONFIG = {
         "step_penalty":            -0.00,
         "goal_success_reward":      0.00,
-        "failed_stop_reward":      -10.00,
+        "failed_stop_reward":      -15.00,
         "shaping_weight":           0.00,
         "penalty_for_init_ask":    -1.00, 
         "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
@@ -127,6 +134,9 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
     def training_pipeline(self, **kwargs):
         # PPO
         ppo_steps = int(15000000)
+    
+        # total_steps = int(5000000)
+        # ppo_steps = int(5000000)
         lr = 3e-4
         num_mini_batch = 1
         update_repeats = 4
@@ -159,7 +169,18 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
                     loss_names=list(named_losses.keys()),
                     max_stage_steps=ppo_steps,
                     loss_weights=[val[1] for val in named_losses.values()],
-                )
+                ),
+                
+                # PipelineStage(
+                #     loss_names= ["ppo_loss"],
+                #     max_stage_steps=ppo_steps,
+                # ),
+                # PipelineStage(
+                #     loss_names=['IMITATION_ADAPT'],
+                #     max_stage_steps=total_steps,
+                #     # loss_weights=[0,1]
+                # )
+                
             ],
             lr_scheduler_builder=Builder(
                 LambdaLR, {"lr_lambda": LinearDecay(steps=ppo_steps)}
@@ -172,16 +193,30 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
         has_rgb = any(isinstance(s, RGBSensor) for s in cls.SENSORS)
         has_depth = any(isinstance(s, DepthSensor) for s in cls.SENSORS)
 
+        train_scenes_dir = os.path.join(cls.TRAIN_DATASET_DIR, "episodes")
+        path = os.path.join(train_scenes_dir, "*.json.gz")
+        train_scenes = [scene.split("/")[-1].split(".")[0] for scene in glob.glob(path)]
+
+        val_scenes_dir = os.path.join(cls.VAL_DATASET_DIR, "episodes")
+        path = os.path.join(val_scenes_dir, "*.json.gz")
+        val_scenes = [scene.split("/")[-1].split(".")[0] for scene in glob.glob(path)]
+
+        total_scenes = train_scenes + val_scenes 
+
         goal_sensor_uuid = next(
             (s.uuid for s in cls.SENSORS if isinstance(s, GoalObjectTypeThorSensor)),
             None,
         )
 
         action_space = gym.spaces.Dict({"nav_action": gym.spaces.Discrete(len(ObjectNavTask.class_action_names())),
-                                     "ask_action": gym.spaces.Discrete(2)})  
+                                     "ask_action": gym.spaces.Discrete(2),"done_prob":gym.spaces.Box(-10.0,10.0,(1,),"float32")})
+                                       
                                     ##NEW ACTIONS : 0 means expert step, 1 means agent step
                                     #OLD ACTIONS : 2 means stop asking, 1 means start asking, 0 means do nothing
-        ADAPT_BELIEF = False                             
+        ADAPT_BELIEF = False
+        ADAPT_POLICY = False
+        ADAPT_VISUAL = False 
+        TETHERED_POLICY_MEMORY = True                               
 
         return ResnetTensorObjectNavActorCritic(
             action_space=action_space,  # gym.spaces.Discrete(len(ObjectNavTask.class_action_names())),
@@ -194,6 +229,11 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             auxiliary_uuids=cls.AUXILIARY_UUIDS,
             is_finetuned=True,
             adapt_belief=ADAPT_BELIEF,
+            adapt_policy = ADAPT_POLICY,
+            adapt_visual= ADAPT_VISUAL,
+            tethered_policy_memory = TETHERED_POLICY_MEMORY,
+            scenes_list = total_scenes,
+            objects_list = cls.TARGET_TYPES,
         )
 
     @classmethod
@@ -241,7 +281,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             ),
             SupImitationLoss.UUID: (
                 SupImitationLoss(),
-                0.05*aux_loss_total_weight,
+                0.0005*aux_loss_total_weight,
             )
         }
 

@@ -51,15 +51,16 @@ class MultiDimActionDistr(Distr):
     Takes two categorical distributions and outputs a joint multidimensional distributions
     '''
 
-    def __init__(self,actor_distr,label_distr):
+    def __init__(self,actor_distr,label_distr,done_prob):
         super().__init__()
         self.actor_distr = actor_distr
         self.label_distr = label_distr
+        self.done_prob = done_prob
 
     def sample(self):
          actor_out = self.actor_distr.sample()
          label_out = self.label_distr.sample()
-         return {"nav_action": actor_out, "ask_action": label_out}
+         return {"nav_action": actor_out, "ask_action": label_out,"done_prob":self.done_prob}
 
     def log_prob(self,value):
         return self.label_distr.log_prob(value["ask_action"]) #+ self.actor_distr.log_prob(value["nav_action"]) 
@@ -67,7 +68,7 @@ class MultiDimActionDistr(Distr):
     def entropy(self):
         return self.label_distr.entropy() #+ self.actor_distr.entropy() 
     def mode(self):
-        return {"nav_action":self.actor_distr.mode(),"ask_action":self.label_distr.mode()}
+        return {"nav_action":self.actor_distr.mode(),"ask_action":self.label_distr.mode(),"done_prob":self.done_prob}
 
 class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
     """Base class of visual navigation / manipulation (or broadly, embodied AI)
@@ -124,7 +125,8 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         '''
 
         self.end_action_idx = 3
-        
+        self.visual_offset = None
+
         # self.succ_pred_model = succ_pred_model(512)#.load_state_dict('./')
 
         # Define the placeholders in init function
@@ -187,6 +189,53 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             )
         )
 
+    def create_visual_residual_model (self,input_size,prev_action_embed_size: int,):
+
+        self.prev_expert_action_embedder = FeatureEmbedding(
+            input_size=self.nav_action_space.n,
+            output_size=prev_action_embed_size,
+        )
+
+        self.prev_expert_mask_embedder = FeatureEmbedding(
+            input_size=2,
+            output_size=prev_action_embed_size,
+        )
+        input_size = input_size + prev_action_embed_size*2
+
+        self.vis_mlp = nn.Sequential(nn.Linear(input_size,input_size//4),nn.ReLU(),nn.Linear(input_size//4,20))
+
+        self.offset_embed = nn.Embedding(20,2048) #FeatureEmbedding(input_size=20,output_size=2048)
+
+        self.offset_embed.weight.data *= 0.1 
+    
+    def create_action_residual_model (self,
+        input_size: int,
+        prev_action_embed_size: int,
+        num_rnn_layers: int,
+        rnn_type: str,
+        trainable_masked_hidden_state=False,):
+        self.prev_expert_action_embedder = FeatureEmbedding(
+            input_size=self.nav_action_space.n,
+            output_size=prev_action_embed_size,
+        )
+
+        self.prev_expert_mask_embedder = FeatureEmbedding(
+            input_size=2,
+            output_size=prev_action_embed_size,
+        )
+
+        self.expert_encoder = RNNStateEncoder(input_size+prev_action_embed_size + prev_action_embed_size, ## one for action + one for mask
+            self._hidden_size,
+            num_layers=num_rnn_layers,
+            rnn_type=rnn_type,
+            trainable_masked_hidden_state=trainable_masked_hidden_state,
+            )
+        self.residual_mlp =  nn.Sequential(nn.Linear(self._hidden_size,self._hidden_size//2),nn.ReLU(),nn.Linear(self._hidden_size//2,self.nav_action_space.n))    
+
+        self.fusion_mlp = nn.Sequential(nn.Linear(self.nav_action_space.n*2,self.nav_action_space.n),nn.ReLU(),nn.Linear(self.nav_action_space.n,self.nav_action_space.n))
+
+        self.prev_expert_action = None
+            
     def create_expert_encoder(self,
         input_size: int,
         prev_action_embed_size: int,
@@ -199,12 +248,22 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             output_size=prev_action_embed_size,
         )
 
-        self.expert_encoder = RNNStateEncoder(input_size+prev_action_embed_size,
+        self.prev_expert_mask_embedder = FeatureEmbedding(
+            input_size=2,
+            output_size=prev_action_embed_size,
+        )
+
+        self.expert_encoder = RNNStateEncoder(input_size+prev_action_embed_size + prev_action_embed_size, ## one for action + one for mask
             self._hidden_size,
             num_layers=num_rnn_layers,
             rnn_type=rnn_type,
             trainable_masked_hidden_state=trainable_masked_hidden_state,
             )
+
+        self.belief_fusion_mlp = nn.Sequential(nn.Linear(self._hidden_size*2,self._hidden_size*2),nn.ReLU(),nn.Linear(self._hidden_size*2,self._hidden_size))    
+
+        # self.expert_encoder.rnn.weight_hh_l0.data *= 0.1
+        # self.expert_encoder.rnn.bias_hh_l0.data *= 0    
 
     def create_ask4_help_module(self,
         prev_action_embed_size: int,
@@ -279,6 +338,12 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
         self.aux_models = nn.ModuleDict(aux_models)
 
+    def set_grad_false(self,param_list):
+        ## setting underlying objectnav model's grad to zero
+        for name,W in self.named_parameters():
+            if name in param_list:
+                W.requires_grad = False
+
     @property
     def num_recurrent_layers(self):
         """Number of recurrent hidden layers."""
@@ -298,18 +363,52 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             self.belief_names.append('succ_pred_gru')
 
         if self.adapt_belief:
-            self.belief_names.append('residual_gru')    
-        return {
-            memory_key: (
-                (
-                    ("layer", self.num_recurrent_layers),
-                    ("sampler", None),
-                    ("hidden", self.recurrent_hidden_state_size[memory_key]),
-                ),
-                torch.float32,
-            )
-            for memory_key in self.belief_names
-        }
+            self.belief_names.append('residual_gru')   
+    
+
+        if self.adapt_policy:
+            self.belief_names.append('residual_gru')
+
+
+
+        out_dict1 = {
+                memory_key: (
+                    (
+                        ("layer", self.num_recurrent_layers),
+                        ("sampler", None),
+                        ("hidden", self.recurrent_hidden_state_size[memory_key]),
+                    ),
+                    torch.float32,
+                )
+                for memory_key in self.belief_names
+            }    
+            
+        if self.tethered_policy_memory:
+            self.belief_names += self.scenes_list
+
+            num_objects = len(self.objects_list)
+            embedding_dim = 1568
+
+            out_dict2 = {
+                memory_key: (
+                    (
+                        ("layer", self.num_recurrent_layers),
+                        ("sampler", None),
+                        ("object_dim",num_objects),
+                        ("hidden", embedding_dim),
+                    ),
+                    torch.float32,
+                )
+                for memory_key in self.scenes_list
+            }
+
+            merged_dict = {**out_dict1,**out_dict2}
+
+            return merged_dict
+
+        else:      
+            return out_dict1
+
 
     def forward_encoder(self, observations: ObservationType) -> torch.FloatTensor:
         raise NotImplementedError("Obs Encoder Not Implemented")
@@ -350,20 +449,73 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
         if self.is_finetuned:
             
+
+            # obs_zero_dim = observations['rgb_clip_resnet'].shape[0] 
+
+            # if self.visual_offset is not None:
+            #     offset_zero_dim = self.visual_offset.shape[0]
+
+            #     if obs_zero_dim==offset_zero_dim:
+            #         nsteps, nsamplers = observations['rgb_clip_resnet'].shape[:2]
+
+            #         self.visual_offset = self.visual_offset.view(nsteps,nsamplers,2048,7,7)
+            #         print (self.visual_offset.requires_grad,'visual offset')
+            #         observations['rgb_clip_resnet'] = observations['rgb_clip_resnet'] + self.visual_offset
+
             expert_action_obs = observations['expert_action']
             expert_action = expert_action_obs[:,:,0]
             expert_action_mask = expert_action_obs[:,:,1]
 
             nactions = self.nav_action_space.n
 
-            with torch.no_grad():
-                # 1.1 use perception model (i.e. encoder) to get observation embeddings
-                obs_embeds = self.forward_encoder(observations)
-                nsteps,nsamplers,_ = obs_embeds.shape
+            expert_mask_embed = self.expert_mask_embedder(expert_action_mask)
 
-                prev_actions_embeds = self.prev_action_embedder(prev_actions['nav_action'])
-                joint_embeds = torch.cat((obs_embeds, prev_actions_embeds), dim=-1)  # (T, N, *)
-                if not self.adapt_belief:
+            # 1.1 use perception model (i.e. encoder) to get observation embeddings
+            obs_embeds = self.forward_encoder(observations)
+            nsteps,nsamplers,_ = obs_embeds.shape
+
+            # print (observations['scene_name_sensor'].shape)
+
+            if self.tethered_policy_memory:
+                goal_object_idx = observations['goal_object_type_ind']
+
+                scene_name_obs = observations['scene_name_sensor']
+
+                for step in range(nsteps):
+                    for samp in range(nsamplers):
+                        continue
+                        if expert_action_mask[step,samp]:
+                            if expert_action[step,samp].item() == self.end_action_idx:
+
+                                train_flag,scn_idx1,scn_idx2 = scene_name_obs[step,samp]
+
+                                scene_name = 'FloorPlan'
+                                if train_flag:
+                                    scene_name+='_Train' + str(scn_idx1.item()) + '_' + str(scn_idx2.item())
+                                else:
+                                    scene_name+='_Val' + str(scn_idx1.item()) + '_' + str(scn_idx2.item())
+                
+                                obj_idx = goal_object_idx[step,samp]
+                                
+                                a = memory.tensor(scene_name).clone()
+
+                                if a[step,samp,obj_idx.item(),:].sum()==0:
+                                    print (a[step,samp,obj_idx.item(),:].shape)
+                                    a[step,samp,obj_idx.item(),:] = obs_embeds[step,samp,:]
+
+                                memory.set_tensor(scene_name,a)    
+
+                                
+                            else:
+                                continue            
+                        else:
+                            continue                
+   
+            prev_actions_embeds = self.prev_action_embedder(prev_actions['nav_action'])
+            joint_embeds = torch.cat((obs_embeds, prev_actions_embeds), dim=-1)  # (T, N, *)
+            
+            if not self.adapt_belief:
+                with torch.no_grad():
 
                     beliefs_dict = {}
                     for key, model in self.state_encoders.items():
@@ -389,53 +541,124 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                     masks_step = masks[step,:,:].unsqueeze(0)
                     
                     # 2. use RNNs to get single/multiple beliefs
-                    with torch.no_grad():
-                        beliefs_dict = {}
-                        for key, model in self.state_encoders.items():
-                            beliefs_dict[key], rnn_hidden_states = model(
-                                joint_embeds, memory.tensor(key), masks_step
-                            )
-                            
-                            memory.set_tensor(key, rnn_hidden_states)  # update memory here
-                    
-                        # 3. fuse beliefs for multiple belief models
-                        beliefs, task_weights = self.fuse_beliefs(
-                            beliefs_dict, obs_embeds
-                        )  # fused beliefs
+                    # with torch.no_grad():
+                    beliefs_dict = {}
+                    for key, model in self.state_encoders.items():
+                        beliefs_dict[key], rnn_hidden_states = model(
+                            joint_embeds, memory.tensor(key), masks_step
+                        )
+                        
+                        memory.set_tensor(key, rnn_hidden_states)  # update memory here
+                
+                    # 3. fuse beliefs for multiple belief models
+                    beliefs, task_weights = self.fuse_beliefs(
+                        beliefs_dict, obs_embeds
+                    )  # fused beliefs
 
-                        if beliefs_combined is None:
-                            beliefs_combined = beliefs
-                        else:
-                            beliefs_combined = torch.cat((beliefs_combined,beliefs),dim=0)
-                    
+                    if beliefs_combined is None:
+                        beliefs_combined = beliefs
+                    else:
+                        beliefs_combined = torch.cat((beliefs_combined,beliefs),dim=0)
                     
                     expert_action_embedding = self.prev_expert_action_embedder(expert_action[step,:].unsqueeze(0))
-                    res_input = torch.cat((beliefs,expert_action_embedding),dim=-1)
+                    expert_mask_embedding = self.prev_expert_mask_embedder(expert_action_mask[step,:].unsqueeze(0))
+                    
+                    res_input = torch.cat((beliefs,expert_action_embedding,expert_mask_embedding),dim=-1)
                     beliefs_residual,residual_hidden_states = self.expert_encoder(res_input,memory.tensor('residual_gru'),masks_step)
                     memory.set_tensor('residual_gru',residual_hidden_states)
 
                     beliefs_residual = beliefs_residual * expert_action_mask.unsqueeze(-1)[step,:,:].unsqueeze(0)
 
-                    beliefs = beliefs + beliefs_residual
+                    beliefs_updated = self.belief_fusion_mlp(torch.cat((beliefs,beliefs_residual),dim=-1)) #beliefs + beliefs_residualß
 
-                    # if beliefs_combined is None:
-                    #     beliefs_combined = beliefs
-                    # else:
-                    #     beliefs_combined = torch.cat((beliefs_combined,beliefs),dim=0)    
-
-                    memory.set_tensor('single_belief',beliefs)
+                    memory.set_tensor('single_belief',beliefs_updated)
                  
-            
             beliefs = beliefs_combined
 
+            # actor_pred_distr = self.actor(beliefs)
+
+            if self.adapt_visual:
+
+                ## do step by step processing when nsteps is non zero
+
+                expert_action_embedding = self.prev_expert_action_embedder(expert_action)
+                expert_mask_embedding = self.prev_expert_mask_embedder(expert_action_mask)
+
+                out = self.vis_mlp(torch.cat((beliefs,expert_action_embedding,expert_mask_embedding),dim=-1))
+
+                out = out.view(nsteps*nsamplers,20)
+                offset = out @ self.offset_embed.weight.clone() 
+
+                offset = offset * expert_action_mask.view(nsteps*nsamplers).unsqueeze(-1)
+
+                offset = offset.unsqueeze(-1).unsqueeze(-1)
+
+                offset = offset.repeat(1,1,7,7)
+
+                self.visual_offset = offset 
+            
+            if self.adapt_policy:
+                actor_distr = self.actor(beliefs)
+                done_prob = torch.softmax(actor_distr.logits,dim=-1)[:,:,self.end_action_idx].unsqueeze(-1)
+
+                expert_action_embedding = self.prev_expert_action_embedder(expert_action)
+                expert_mask_embedding = self.prev_expert_mask_embedder(expert_action_mask)
+                
+                res_input = torch.cat((beliefs,expert_action_embedding,expert_mask_embedding),dim=-1)
+                policy_residual,residual_hidden_states = self.expert_encoder(res_input,memory.tensor('residual_gru'),masks)
+                memory.set_tensor('residual_gru',residual_hidden_states)
+
+                out = self.residual_mlp(policy_residual)
+
+                out_logits = self.fusion_mlp(torch.cat((out,actor_distr.logits),dim=-1))
+                actor_pred_distr  = CategoricalDistr(logits=out_logits) 
+
+            else:
+                actor_pred_distr = self.actor(beliefs)
+                done_prob = torch.softmax(actor_pred_distr.logits,dim=-1)[:,:,self.end_action_idx].unsqueeze(-1)
+                done_prob_updated = done_prob
+
+                '''
+                ## only for thresholding 
+                logits = actor_pred_distr.logits
+
+                
+                ## thresholding end at 0.70
+                for step in range(nsteps):
+                    for samp in range(nsamplers):
+                        if done_prob[step,samp]<0.70:
+                            # sum_before = logits[step,samp].sum()
+                            # print (logits[step,samp],'before')
+                            # print (logits[step,samp].sum(),'before')
+                            # print (logits[step,samp].shape,'before')
+                            logits[step,samp,self.end_action_idx] = -999
+                            # logits[step,samp]*=(sum_before/logits[step,samp].sum())
+                            # logits[step,samp] = torch.softmax(logits[step,samp],dim=-1)
+                            # print (logits[step,samp])
+                            # exit()
+
+                done_prob_updated = torch.softmax(logits,dim=-1)[:,:,self.end_action_idx].unsqueeze(-1)
+                actor_pred_distr = CategoricalDistr(logits=logits) 
+                '''           
+                                        
+        
+            ## restore for grad check
+            '''
+            if nsteps == 4:
+                for name,W in self.named_parameters():
+                    if W.requires_grad is True:
+                        # if W.grad is not None:
+                        if name == 'expert_encoder.rnn.weight_ih_l0':
+                            print (W.grad,'gradient check')
+                            # print (W.grad.shape,name) 
+                            # exit()
+            '''                    
+                            
             with torch.no_grad():
 
-                actor_pred_distr = self.actor(beliefs)
-
-                if self.end_action_in_ask:
-                    ## making logits of end so small that it's never picked by the agent.
-                    actor_pred_distr.logits[:,:,self.end_action_idx] -= 999
-
+                # if self.end_action_in_ask:
+                #     ## making logits of end so small that it's never picked by the agent.
+                #     actor_pred_distr.logits[:,:,self.end_action_idx] -= 999
 
                 if self.succ_pred_model is None:
                     self.succ_pred_model = succ_pred_model(512).to(beliefs.device)
@@ -449,10 +672,11 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
                 succ_prob_inp = succ_prob.repeat(1,1,48)                
 
-                ask_policy_input = torch.cat((beliefs,succ_prob_inp),dim=-1)
-                
+            beliefs_ask_policy = beliefs.clone()
+            beliefs_ask_policy = beliefs_ask_policy.detach()
+            ask_policy_input = torch.cat((beliefs_ask_policy,succ_prob_inp),dim=-1)
             prev_ask_action_embed = self.prev_ask_action_embedder(prev_actions['ask_action'])
-            expert_mask_embed = self.expert_mask_embedder(expert_action_mask)
+            # expert_mask_embed = self.expert_mask_embedder(expert_action_mask)
 
             if self.adaptive_reward:
                 reward_config_embed = self.reward_function_embedder(observations['reward_config_sensor'])                
@@ -488,7 +712,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             
             actor_distr = CategoricalDistr(logits=action_logits)
 
-            output_distr = MultiDimActionDistr(actor_distr, ask_pred_distr)
+            output_distr = MultiDimActionDistr(actor_distr, ask_pred_distr,done_prob_updated)
 
             # 4. prepare output
             extras = (

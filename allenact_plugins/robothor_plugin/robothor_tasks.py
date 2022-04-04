@@ -256,6 +256,9 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.max_expert_span = 0
 
         self.penalty_given_once = False
+        self.end_action_prob = 0.0 
+        self.expert_ended_traj = False
+        self.expert_took_step = False 
 
     @property
     def action_space(self):
@@ -275,6 +278,9 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
         ask_action = action['ask_action']
         ask_action = cast(int,ask_action)
+        done_action_prob = action['done_prob'][0]
+
+        # ask_action=0 # always agent
 
         if ask_action==0:
             # print ('expert takes step')
@@ -282,12 +288,13 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             self.agent_asked_for_help = True 
             self.help_asked_at_all = True
             self.expert_action_span+=1
+            self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
 
         if ask_action==1:
             # print ('agent takes step')  
             ask_action_str = 'stop_asking'  
             self.agent_asked_for_help = False 
-            self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
+            # self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
             self.expert_action_span = 0 ##reset counter  
 
 
@@ -340,16 +347,34 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.task_info["taken_actions"].append(action_str)
         self.task_info["taken_ask_actions"].append(ask_action_str)
 
-        
         if action_str == END:
             # if ask_action==3:
             #     print ('logic error in ask action END')
             #     exit()
+            if self.expert_took_step is True:
+                self.expert_ended_traj = True 
             self._took_end_action = True
+            ### letting expert end the trajectory
             self._success = self._is_goal_in_range()
+            self.end_action_prob = done_action_prob
             if not self._success:
                 self.false_stop = 1
             self.last_action_success = self._success
+
+            # else:
+            #     ## agent called end. 
+            #     if done_action_prob<0: ## basically no threshold
+            #         #0.80:
+            #         ## not letting it call done 
+            #         self.last_action_success = True
+            #         pass 
+            #     else:
+            #         self._took_end_action = True
+            #         self._success = self._is_goal_in_range()
+            #         self.end_action_prob = done_action_prob
+            #         if not self._success:
+            #             self.false_stop = 1
+            #         self.last_action_success = self._success
         else:
             self.env.step({"action": action_str})
             self.last_action_success = self.env.last_action_success
@@ -360,6 +385,11 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             self.travelled_distance += IThorEnvironment.position_dist(
                 p0=self.path[-1], p1=self.path[-2], ignore_y=True
             )
+
+        if ask_action==0:
+            ## for knowing if expert called end. 
+            self.expert_took_step = True 
+                
         step_result = RLStepResult(
             observation=self.get_observations(),
             reward=self.judge(),
@@ -503,6 +533,8 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 "false_done_actions":self.false_stop,
                 "helped_asked_at_all":self.help_asked_at_all,
                 "longest_span_of_expert":self.max_expert_span,
+                "done_action_prob": self.end_action_prob,
+                "expert_ends_traj":self.expert_ended_traj,
                 "spl": 0 if spl is None else spl,
             }
         return metrics

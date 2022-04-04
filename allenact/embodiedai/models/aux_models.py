@@ -65,6 +65,7 @@ class AuxiliaryModel(nn.Module):
 
         elif FrequencyLoss.UUID in self.aux_uuid:
             pass 
+
         elif SupImitationLoss.UUID in self.aux_uuid:
             pass       
         else:

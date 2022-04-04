@@ -223,6 +223,8 @@ class SupImitationLoss(AuxiliaryLoss):
         expert_action_seq = expert_actions[:,:,0]
 
         softmax_logits = torch.log_softmax(model_action_logits,dim=-1)
+
+        # soft_logits = torch.softmax(model_action_logits,dim=-1)
         
         softmax_logits = softmax_logits.view(nsteps*nsamplers,-1)
         expert_action_seq = expert_action_seq.view(nsteps*nsamplers)
@@ -233,10 +235,16 @@ class SupImitationLoss(AuxiliaryLoss):
 
         num_valid_losses = expert_action_masks.sum()
 
-        loss = loss*expert_action_masks
+        if expert_action_masks.sum().item()==0:
+            return torch.tensor(0.,requires_grad=True),{}
+        else:    
+            loss = loss*expert_action_masks
 
         avg_loss = (loss.sum(0).sum(0)) / torch.clamp(num_valid_losses, min=1.0)
-        
+
+        print (avg_loss.requires_grad,'loss')
+        # exit()
+
         return (
             avg_loss,
             {"total": cast(torch.Tensor, avg_loss).item(),},

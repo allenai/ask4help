@@ -18,9 +18,9 @@ class ObjectNavRoboThorBaseConfig(ObjectNavThorBaseConfig, ABC):
 
     AGENT_MODE = "locobot"
 
-    DEFAULT_NUM_TRAIN_PROCESSES = 60 if torch.cuda.is_available() else 1
+    DEFAULT_NUM_TRAIN_PROCESSES = 1 if torch.cuda.is_available() else 1
 
-    TRAIN_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/train_0.25")
+    TRAIN_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/train_adapt_1")
     VAL_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/val")
     # TEST_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/test")
 

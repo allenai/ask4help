@@ -13,6 +13,7 @@ from allenact_plugins.ithor_plugin.ithor_environment import IThorEnvironment
 from allenact_plugins.ithor_plugin.ithor_sensors import RGBSensorThor
 from allenact_plugins.robothor_plugin.robothor_environment import RoboThorEnvironment
 from allenact_plugins.robothor_plugin.robothor_tasks import PointNavTask
+# from allenact.allenact.algorithms.onpolicy_sync.policy import ObservationType
 
 
 class RGBSensorRoboThor(RGBSensorThor):
@@ -207,3 +208,41 @@ class RewardConfigSensor(Sensor):
         config_idx = task.task_info['reward_config_idx']
 
         return np.array(config_idx)        
+
+
+class SceneNameSensor(Sensor):
+    def __init__(self,uuid='scene_name_sensor',**kwargs: Any):
+
+        observation_space = self._get_observation_space()
+
+        super().__init__(**prepare_locals_for_super(locals()))
+
+    def _get_observation_space(self):
+
+        return gym.spaces.Discrete(3)
+
+    def get_observation(self,env,task,*args: Any, **kwargs: Any) -> Any:
+
+        scene_name = task.task_info['scene_name']
+
+        split = scene_name.split('_')
+
+        scn_idx_end = int(split[-1])
+
+        if 'Train' in split[-2]:
+            train = True 
+            scn_idx_mid = int(split[-2].replace('Train',''))
+
+        else:
+            train = False
+            scn_idx_mid = int(split[-2].replace('Val',''))    
+
+
+        return np.array([train,scn_idx_mid,scn_idx_end])        
+
+
+
+
+
+
+                

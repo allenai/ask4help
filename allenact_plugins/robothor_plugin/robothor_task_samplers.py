@@ -320,7 +320,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             )
             for scene in scenes
         }
-
+   
         # Only keep episodes containing desired objects
         if 'object_types' in kwargs:
             self.episodes = {
@@ -351,6 +351,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         self.scene_index = 0
         self.episode_index = 0
         self.randomize_materials_in_training = randomize_materials_in_training
+        self.scene_object_count = 0
 
         self._last_sampled_task: Optional[ObjectNavTask] = None
 
@@ -441,6 +442,18 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         return float("inf") if self.max_tasks is None else self.max_tasks
 
     def next_task(self, force_advance_scene: bool = False) -> Optional[ObjectNavTask]:
+
+        if self._last_sampled_task is not None:
+            prev_scene = self._last_sampled_task.task_info['scene_name']
+            prev_object = self._last_sampled_task.task_info['object_type']
+            # current_scene_object_count = self._last_sampled_task.task_info['scene_object_count']
+
+        '''
+        self._last_sampled_task.episode_count ## count how many times same object and same scene have happened, reset after every 5 combinations
+        simple Linear(visual_embedding.dot(memory dot product) -> sigmoid -> binary cross entropy)
+        ## create sensor which tells when to reset memory
+        '''
+
         if self.max_tasks is not None and self.max_tasks <= 0:
             return None
 
@@ -451,6 +464,33 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             self.episode_index = 0
         scene = self.scenes[self.scene_index]
         episode = self.episodes[scene][self.episode_index]
+
+        
+        if self._last_sampled_task is not None: 
+            if (scene==prev_scene):
+                if prev_object == episode['object_type']:
+                    self.scene_object_count+=1
+                else:
+                    self.next_task()          
+            else:
+                self.next_task()
+        
+        '''
+        if self.scene_object_count!=0:
+            if (scene==prev_scene): #and (episode['object_type']== prev_object):
+                if episode['object_type']!= "Television":
+                    self.scene_object_count+=1
+                    self.next_task()
+                
+                self.scene_object_count+=1
+                # exit()
+            else:
+                # exit()
+                self.scene_object_count+=1
+                self.next_task()
+        else:
+            self.scene_object_count+=1      
+        '''    
         if self.env is None:
             self.env = self._create_environment()
 
@@ -495,6 +535,8 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         task_info["path_to_target"] = episode.get("shortest_path")
         task_info["object_type"] = episode["object_type"]
         task_info["id"] = episode["id"]
+        task_info['scene_name'] = self.env.scene_name
+        task_info['scene_object_count'] = self.scene_object_count
         if self.allow_flipping and random.random() > 0.5:
             task_info["mirrored"] = True
         else:
@@ -509,47 +551,6 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             horizon=episode.get("initial_horizon", 0),
         ):
             return self.next_task()
-
-        adaptive_configs_dict = {0: {
-        "step_penalty":            -0.01,
-        "goal_success_reward":      0.00,
-        "failed_stop_reward":      -10.00,
-        "shaping_weight":           0.00,
-        "penalty_for_init_ask":    -1.00, 
-        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-        "penalty_for_step_ask":    -0.0,
-        },
-
-        1: {
-        "step_penalty":            -0.01,
-        "goal_success_reward":      0.00,
-        "failed_stop_reward":      -5.00,
-        "shaping_weight":           0.00,
-        "penalty_for_init_ask":    -1.00, 
-        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-        "penalty_for_step_ask":    -0.0,
-        },
-
-        2: {
-        "step_penalty":            -0.01,
-        "goal_success_reward":      0.00,
-        "failed_stop_reward":      -2.50,
-        "shaping_weight":           0.00,
-        "penalty_for_init_ask":    -1.00, 
-        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-        "penalty_for_step_ask":    -0.0,
-        },
-
-        3: {
-        "step_penalty":            -0.01,
-        "goal_success_reward":      0.00,
-        "failed_stop_reward":      -15.00,
-        "shaping_weight":           0.00,
-        "penalty_for_init_ask":    -1.00, 
-        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-        "penalty_for_step_ask":    -0.0,
-        }} 
-
         
 
         if self.adaptive_reward:
@@ -590,7 +591,6 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
                 action_space=self._action_space,
                 reward_configs=rewards_config,
             )
-
 
         else:    
             self._last_sampled_task = ObjectNavTask(
