@@ -471,9 +471,9 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
                 if prev_object == episode['object_type']:
                     self.scene_object_count+=1
                 else:
-                    self.next_task()          
+                    return self.next_task()          
             else:
-                self.next_task()
+                return self.next_task()
         
         '''
         if self.scene_object_count!=0:
