@@ -260,6 +260,11 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.expert_ended_traj = False
         self.expert_took_step = False 
 
+        self.tethered_called_end = False
+        self.tethered_called_correct_end = False
+        self.tethered_confidence = 0.0
+        
+
     @property
     def action_space(self):
         return gym.spaces.Discrete(len(self._actions))
@@ -279,8 +284,11 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         ask_action = action['ask_action']
         ask_action = cast(int,ask_action)
         done_action_prob = action['done_prob'][0]
+        tethered_done = action['tethered_done'][0]
 
-        # ask_action=0 # always agent
+        if self.task_info['scene_object_count']==1:
+            ask_action=0 # always expert ##for first scene_object_pair
+        ask_action = 0     
 
         if ask_action==0:
             # print ('expert takes step')
@@ -298,37 +306,6 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             self.expert_action_span = 0 ##reset counter  
 
 
-        '''    
-        if ask_action==1:
-            # print ('start asking for help')
-            self.agent_asked_for_help = True
-            self.help_asked_at_all = True
-            self.expert_action_span+=1
-            self.asked_init_help_flag = False
-            # self.max_steps = 5e5
-
-        if ask_action==2:
-            # print ('stop asking')
-            self.agent_asked_for_help = False
-            self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
-            self.expert_action_span = 0 ##reset counter
-
-        if ask_action==0:
-            # print ('do nothing')
-            self.asked_init_help_flag = True
-
-        if ask_action==3:
-            # print ('ask policy called END')
-            # self._took_end_action = True
-            # self._success = self._is_goal_in_range()
-            # if not self._success:
-            #     self.false_stop = 1
-            # self.last_action_success = self._success
-            self.agent_asked_for_help = False
-            action_str = END
-        '''   
-                
-
         action = action['nav_action']
         assert isinstance(action, int)
         action = cast(int, action)
@@ -337,6 +314,18 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             self.num_steps_expert+=1
 
         action_str = self.class_action_names()[action]
+
+        print (tethered_done,self.task_info['scene_object_count'],self.num_steps_taken())  
+        
+        
+        '''
+        if tethered_done>0.10:
+            action_str = END
+            self.tethered_called_end = True
+            self.agent_asked_for_help = False 
+        '''    
+            
+        # print (self.num_steps_taken(),self.task_info['scene_object_count'],'in the task')    
 
         if self.mirror:
             if action_str == ROTATE_RIGHT:
@@ -351,16 +340,29 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             # if ask_action==3:
             #     print ('logic error in ask action END')
             #     exit()
+            self.tethered_confidence = tethered_done
+
+            print (self.tethered_confidence,self.task_info['scene_object_count'])  
+
+            # if self.task_info['scene_object_count']==4:
+            #     exit()
+
             if self.expert_took_step is True:
-                self.expert_ended_traj = True 
+                self.expert_ended_traj = True
+            # print (self.expert_ended_traj,'expert ending traj?')    
             self._took_end_action = True
             ### letting expert end the trajectory
             self._success = self._is_goal_in_range()
+            if tethered_done>0.10:
+                self.tethered_called_end = True
+                self.expert_ended_traj = False
+                if self._success:
+                    self.tethered_called_correct_end = True 
             self.end_action_prob = done_action_prob
             if not self._success:
                 self.false_stop = 1
             self.last_action_success = self._success
-
+    
             # else:
             #     ## agent called end. 
             #     if done_action_prob<0: ## basically no threshold
@@ -524,6 +526,11 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
             expert_action_ratio = self.num_steps_expert/self.num_steps_taken()
 
+            if self._took_end_action:
+
+                print (self.num_steps_taken())
+                exit() 
+
             metrics = {
                 **metrics,
                 "success": self._success,
@@ -535,6 +542,9 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 "longest_span_of_expert":self.max_expert_span,
                 "done_action_prob": self.end_action_prob,
                 "expert_ends_traj":self.expert_ended_traj,
+                "tethered_called_end":self.tethered_called_end,
+                "tethered_called_correct_end":self.tethered_called_correct_end,
+                "tethered_confidence":self.tethered_confidence,
                 "spl": 0 if spl is None else spl,
             }
         return metrics

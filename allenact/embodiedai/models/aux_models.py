@@ -16,7 +16,8 @@ from allenact.embodiedai.aux_losses.losses import (
     TemporalDistanceLoss,
     CPCALoss,
     FrequencyLoss,
-    SupImitationLoss
+    SupImitationLoss,
+    TetheredImitationLoss,
 )
 
 
@@ -31,6 +32,8 @@ class AuxiliaryModel(nn.Module):
         obs_embed_dim: int,
         belief_dim: int,
         action_embed_size: int = 4,
+        num_steps: int = 64,
+        num_processes: int = 60,
         cpca_classifier_hidden_dim: int = 32,
     ):
         super().__init__()
@@ -67,7 +70,10 @@ class AuxiliaryModel(nn.Module):
             pass 
 
         elif SupImitationLoss.UUID in self.aux_uuid:
-            pass       
+            pass   
+
+        elif TetheredImitationLoss.UUID in self.aux_uuid:
+            pass  
         else:
             raise ValueError("Unknown Auxiliary Loss UUID")
 

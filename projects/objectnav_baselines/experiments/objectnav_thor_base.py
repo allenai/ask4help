@@ -76,7 +76,7 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
             num_train_processes, self.DEFAULT_NUM_TRAIN_PROCESSES
         )
         self.num_test_processes = v_or_default(
-            num_test_processes, (10 if torch.cuda.is_available() else 1)
+            num_test_processes, (1 if torch.cuda.is_available() else 1)
         )
         self.test_on_validation = test_on_validation
         self.train_gpu_ids = v_or_default(train_gpu_ids, self.DEFAULT_TRAIN_GPU_IDS)
@@ -125,7 +125,7 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
             )
             sampler_devices = self.sampler_devices
         elif mode == "valid":
-            nprocesses = 1
+            nprocesses = 0 ## just for tethered policy run
             devices = (
                 [torch.device("cpu")]
                 if not torch.cuda.is_available()

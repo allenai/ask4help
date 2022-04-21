@@ -189,6 +189,74 @@ class FrequencyLoss(AuxiliaryLoss):
             {"total": cast(torch.Tensor, avg_loss).item(),},
         ) 
 
+
+class TetheredImitationLoss(AuxiliaryLoss):
+
+    '''
+    Imitation Loss for the Tethered Policy
+    '''
+
+    UUID = "TETHERED_POLICY_LOSS"
+
+    def __init__(self,*args,**kwargs):
+        super().__init__(auxiliary_uuid=self.UUID,**kwargs)
+        self.cross_entropy_loss = nn.BCEWithLogitsLoss(reduction='none')
+
+    def get_aux_loss(
+        self,
+        aux_model: nn.Module,
+        observations: ObservationType,
+        obs_embeds: torch.FloatTensor,
+        ask_action_logits,
+        model_action_logits,
+        expert_actions,
+        actions: torch.FloatTensor,
+        beliefs: torch.FloatTensor,
+        masks: torch.FloatTensor,
+        tethered_output: torch.FloatTensor,
+        memory_input: torch.FloatTensor,
+        *args,
+        **kwargs):
+
+        nsteps,nsamplers,_  = masks.shape
+
+        expert_action_mask = observations['expert_action'][:,:,1]
+        tethered_output =  tethered_output.view(nsteps*nsamplers,-1)
+
+        gt = torch.zeros(nsteps,nsamplers).to(beliefs.device)
+
+        inv_masks = (1 - masks).squeeze(-1) 
+
+        inv_masks_non_zero = torch.nonzero(inv_masks,as_tuple=False)
+
+        for i in range(inv_masks_non_zero.shape[0]):
+            temp = inv_masks_non_zero[0,:]
+            if temp[0]!=0:
+                gt[temp[0]-1,temp[1]] = 1.0
+
+        gt = gt.view(nsteps*nsamplers,-1)
+
+        loss = self.cross_entropy_loss(tethered_output,gt)
+
+        expert_action_mask = expert_action_mask.view(nsteps*nsamplers,-1)
+        loss = loss*expert_action_mask
+
+        num_valid_losses = expert_action_mask.sum()
+
+        avg_loss = loss.sum()/torch.clamp(num_valid_losses, min=1.0)
+
+        # if num_valid_losses.item()==0:
+            ##prevents logging where there is no expert supervision
+            # return torch.tensor(0.,requires_grad=True),{}
+        
+        return (
+            avg_loss,
+            {"total": cast(torch.Tensor, avg_loss).item(),},
+        )
+
+
+
+
 class SupImitationLoss(AuxiliaryLoss):
     """
     Supervised Imitation Loss for adaptation from expert supervision
@@ -241,9 +309,6 @@ class SupImitationLoss(AuxiliaryLoss):
             loss = loss*expert_action_masks
 
         avg_loss = (loss.sum(0).sum(0)) / torch.clamp(num_valid_losses, min=1.0)
-
-        print (avg_loss.requires_grad,'loss')
-        # exit()
 
         return (
             avg_loss,

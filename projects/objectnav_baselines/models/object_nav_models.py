@@ -178,6 +178,8 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
         adaptive_reward=False,
         scenes_list : Optional[str] = None,
         objects_list: Optional[str] = None,
+        num_processes: Optional[int] = 60,
+        num_steps: Optional[int] = 128//2,
         # custom params
         rgb_resnet_preprocessor_uuid: Optional[str] = None,
         depth_resnet_preprocessor_uuid: Optional[str] = None,
@@ -231,9 +233,14 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
 
         self.create_actorcritic_head()
 
+        self.num_processes = num_processes
+        self.num_steps = num_steps
+
         self.create_aux_models(
             obs_embed_size=self.goal_visual_encoder.output_dims,
             action_embed_size=action_embed_size,
+            num_steps = self.num_steps,
+            num_processes = self.num_processes,
         )
         self.is_finetuned = is_finetuned
 
@@ -251,6 +258,7 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
         self.scenes_list = scenes_list
         self.objects_list = objects_list
         self.tethered_policy_memory = tethered_policy_memory
+        
 
         if self.is_finetuned:
             self.create_ask4_help_module(prev_action_embed_size=action_embed_size,
@@ -273,7 +281,10 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
             )  
 
         if self.adapt_visual:
-            self.create_visual_residual_model(input_size=self._hidden_size,prev_action_embed_size=action_embed_size)      
+            self.create_visual_residual_model(input_size=self._hidden_size,prev_action_embed_size=action_embed_size)
+
+        if self.tethered_policy_memory:
+            self.create_tethered_policy()          
 
         self.train()
 

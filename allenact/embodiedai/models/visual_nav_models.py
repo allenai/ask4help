@@ -6,6 +6,7 @@ import os
 import gym
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from gym.spaces.dict import Dict as SpaceDict
 
 from allenact.algorithms.onpolicy_sync.policy import (
@@ -51,16 +52,17 @@ class MultiDimActionDistr(Distr):
     Takes two categorical distributions and outputs a joint multidimensional distributions
     '''
 
-    def __init__(self,actor_distr,label_distr,done_prob):
+    def __init__(self,actor_distr,label_distr,done_prob,tethered_done_score):
         super().__init__()
         self.actor_distr = actor_distr
         self.label_distr = label_distr
         self.done_prob = done_prob
+        self.tethered_done = tethered_done_score
 
     def sample(self):
          actor_out = self.actor_distr.sample()
          label_out = self.label_distr.sample()
-         return {"nav_action": actor_out, "ask_action": label_out,"done_prob":self.done_prob}
+         return {"nav_action": actor_out, "ask_action": label_out,"done_prob":self.done_prob,"tethered_done":self.tethered_done}
 
     def log_prob(self,value):
         return self.label_distr.log_prob(value["ask_action"]) #+ self.actor_distr.log_prob(value["nav_action"]) 
@@ -68,7 +70,7 @@ class MultiDimActionDistr(Distr):
     def entropy(self):
         return self.label_distr.entropy() #+ self.actor_distr.entropy() 
     def mode(self):
-        return {"nav_action":self.actor_distr.mode(),"ask_action":self.label_distr.mode(),"done_prob":self.done_prob}
+        return {"nav_action":self.actor_distr.mode(),"ask_action":self.label_distr.mode(),"done_prob":self.done_prob,"tethered_done":self.tethered_done}
 
 class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
     """Base class of visual navigation / manipulation (or broadly, embodied AI)
@@ -236,6 +238,16 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
         self.prev_expert_action = None
             
+    def create_tethered_policy(self):
+
+        self.shared_mlp = nn.Sequential(nn.Linear(1568,1568//2),nn.ReLU(),nn.Linear(1568//2,512))
+        # self.obs_mlp = nn.Sequential(nn.Linear(1568,1568//2),nn.ReLU(),nn.Linear(1568//2,512))
+        # self.target_mlp = nn.Sequential(nn.Linear(1568,1568//2),nn.ReLU(),nn.Linear(1568//2,512))
+        # inp_size = num_steps*num_processes
+        self.cosine_similarity = nn.CosineSimilarity(dim=1,eps=1e-6)
+        self.mse_loss = nn.MSELoss(reduction='none')
+        self.out_mlp = nn.Linear(1,1)
+    
     def create_expert_encoder(self,
         input_size: int,
         prev_action_embed_size: int,
@@ -323,7 +335,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         self.actor = LinearActorHead(self._hidden_size, self.nav_action_space.n)
         self.critic = LinearCriticHead(self._hidden_size)
 
-    def create_aux_models(self, obs_embed_size: int, action_embed_size: int):
+    def create_aux_models(self, obs_embed_size: int, action_embed_size: int,num_steps: int, num_processes: int):
         if self.auxiliary_uuids is None:
             return
         aux_models = OrderedDict()
@@ -334,6 +346,8 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 obs_embed_dim=obs_embed_size,
                 belief_dim=self._hidden_size,
                 action_embed_size=action_embed_size,
+                num_steps = num_steps,
+                num_processes = num_processes,
             )
 
         self.aux_models = nn.ModuleDict(aux_models)
@@ -369,8 +383,6 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         if self.adapt_policy:
             self.belief_names.append('residual_gru')
 
-
-
         out_dict1 = {
                 memory_key: (
                     (
@@ -387,15 +399,23 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             self.belief_names += self.scenes_list
 
             num_objects = len(self.objects_list)
-            embedding_dim = 1568
+            embedding_dim = 2048#1568 #512 #2048#1568
+            num_steps = 5
+
+            ## add dimension for steps 
+            ## change embedding_dim to 512
+            ## modify action space for tethered policy 
 
             out_dict2 = {
                 memory_key: (
                     (
                         ("layer", self.num_recurrent_layers),
                         ("sampler", None),
+                        # ("expert_step",num_steps),
                         ("object_dim",num_objects),
                         ("hidden", embedding_dim),
+                        ("h",7),
+                        ("w",7)
                     ),
                     torch.float32,
                 )
@@ -466,51 +486,29 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             expert_action = expert_action_obs[:,:,0]
             expert_action_mask = expert_action_obs[:,:,1]
 
+            
+
             nactions = self.nav_action_space.n
 
             expert_mask_embed = self.expert_mask_embedder(expert_action_mask)
 
             # 1.1 use perception model (i.e. encoder) to get observation embeddings
             obs_embeds = self.forward_encoder(observations)
+
+            obs_emb_size = obs_embeds.size(-1)
             nsteps,nsamplers,_ = obs_embeds.shape
 
-            # print (observations['scene_name_sensor'].shape)
+            
 
-            if self.tethered_policy_memory:
-                goal_object_idx = observations['goal_object_type_ind']
+            clip_resnet_obs =  observations['rgb_clip_resnet'].view(nsteps,nsamplers,2048,7,7)
 
-                scene_name_obs = observations['scene_name_sensor']
+            # print (clip_resnet_obs.shape)
+            # exit()
 
-                for step in range(nsteps):
-                    for samp in range(nsamplers):
-                        continue
-                        if expert_action_mask[step,samp]:
-                            if expert_action[step,samp].item() == self.end_action_idx:
+            # clip_resnet_obs = F.avg_pool2d(clip_resnet_obs,4).unsqueeze(-1).unsqueeze(-1)
 
-                                train_flag,scn_idx1,scn_idx2 = scene_name_obs[step,samp]
+            # clip_resnet_obs  = clip_resnet_obs.view(nsteps,nsteps,-1)
 
-                                scene_name = 'FloorPlan'
-                                if train_flag:
-                                    scene_name+='_Train' + str(scn_idx1.item()) + '_' + str(scn_idx2.item())
-                                else:
-                                    scene_name+='_Val' + str(scn_idx1.item()) + '_' + str(scn_idx2.item())
-                
-                                obj_idx = goal_object_idx[step,samp]
-                                
-                                a = memory.tensor(scene_name).clone()
-
-                                if a[step,samp,obj_idx.item(),:].sum()==0:
-                                    print (a[step,samp,obj_idx.item(),:].shape)
-                                    a[step,samp,obj_idx.item(),:] = obs_embeds[step,samp,:]
-
-                                memory.set_tensor(scene_name,a)    
-
-                                
-                            else:
-                                continue            
-                        else:
-                            continue                
-   
             prev_actions_embeds = self.prev_action_embedder(prev_actions['nav_action'])
             joint_embeds = torch.cat((obs_embeds, prev_actions_embeds), dim=-1)  # (T, N, *)
             
@@ -573,6 +571,133 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
                     memory.set_tensor('single_belief',beliefs_updated)
                  
+            
+
+            if self.tethered_policy_memory:
+                goal_object_idx = observations['goal_object_type_ind']
+
+                scene_name_obs = observations['scene_name_sensor']
+                scene_obj_count = observations['scene_object_count']
+
+                # memory_inp = torch.zeros(nsteps,nsamplers,obs_emb_size).to(obs_embeds.device)
+                memory_inp = torch.zeros(nsteps,nsamplers,2048,7,7).to(obs_embeds.device)
+
+                ## filling up memory 
+                for i,step in enumerate(range(nsteps)):
+                    for samp in range(nsamplers):
+
+                        train_flag,scn_idx1,scn_idx2 = scene_name_obs[step,samp]
+
+                        scene_name = 'FloorPlan'
+                        if train_flag:
+                            scene_name+='_Train' + str(scn_idx1.item()) + '_' + str(scn_idx2.item())
+                        else:
+                            scene_name+='_Val' + str(scn_idx1.item()) + '_' + str(scn_idx2.item())
+                        obj_idx = goal_object_idx[step,samp]
+                        scn_obj_count = scene_obj_count[step,samp].item()
+
+                        ## pop the first and the append the last, as soon as appended the end action,save it
+                        ## move the list to the left by one index
+
+                        # print (masks[step,samp])
+
+                        if scn_obj_count==1 and not (masks[step,samp].item()):
+                            a = memory.tensor(scene_name).clone()
+
+                            # print (a.shape)
+
+                            # a[:,:,samp,obj_idx.item(),:] *= 0.0
+                            # print (a.shape,'memory tensor shape')
+                            # exit()
+
+                            a[:,samp,obj_idx.item(),:,:,:] *= 0.0 ##use this for end only version  
+                            memory.set_tensor(scene_name,a)
+                            # exit()
+
+                        memory_inp[step,samp,:,:,:] = memory.tensor(scene_name)[0,samp,obj_idx.item()]
+
+                        if scn_obj_count==1:
+                            if expert_action_mask[step,samp]:
+                                if expert_action[step,samp].item() == self.end_action_idx:
+
+                                    a = memory.tensor(scene_name).clone() ## a is only one dimensional since its a per step thing 
+
+                                    if a[:,samp,obj_idx.item(),:,:,:].sum()==0:
+                                        print ('memory updated')
+                                        print (clip_resnet_obs[step,samp,:].shape)
+                                        # a[:,samp,obj_idx.item(),:] = obs_embeds[step,samp,:]
+                                        a[:,samp,obj_idx.item(),:,:,:] = clip_resnet_obs[step,samp,:,:,:]
+                                        # a[:,samp,obj_idx.item(),:] = joint_embeds[step,samp,:]
+                                        # exit()
+
+                                    memory.set_tensor(scene_name,a)   
+                                else:
+                                    continue  
+                            else:
+                                continue
+
+            obs_embeds = obs_embeds.view(nsteps*nsamplers,-1)
+            # memory_inp = memory_inp.view(nsteps*nsamplers,-1)
+            beliefs_inp = beliefs.view(nsteps*nsamplers,-1)
+
+            joint_embeds_inp = joint_embeds.view(nsteps*nsamplers,-1)
+
+            # out_1 = self.shared_mlp(obs_embeds) #self.obs_mlp(obs_embeds)
+            # out_2 = self.shared_mlp(memory_inp) #self.target_mlp(memory_inp)
+
+            # print (out_1.shape,out_2.shape)
+
+            # clip_resnet_obs = clip_resnet_obs.view(nsteps*nsamplers,-1)
+
+            # print (clip_resnet_obs.shape)
+            # print (memory_inp.shape)
+
+            clip_resnet_obs = clip_resnet_obs.view(nsteps*nsamplers,-1)
+            memory_inp = memory_inp.view(nsteps*nsamplers,-1)
+
+            print (clip_resnet_obs.sum())
+            print (memory_inp.sum())
+
+            # cos_sim = self.mse_loss(obs_embeds,memory_inp).mean(-1).unsqueeze(-1)
+
+            # print (clip_resnet_obs.shape)
+            # print (memory_inp.shape)
+
+            cos_sim = torch.mm(clip_resnet_obs,memory_inp.T)
+            print (cos_sim.shape)
+            exit()
+            # exit()
+
+            # cos_sim = self.mse_loss(clip_resnet_obs,clip_resnet_obs).mean(-1).unsqueeze(-1)
+            # cos_sim = self.cosine_similarity(clip_resnet_obs,memory_inp).unsqueeze(-1)
+
+            # print (cos_sim)
+            # exit()
+            # cos_sim = self.mse_loss(joint_embeds_inp,memory_inp).mean(-1).unsqueeze(-1)
+
+            # print (cos_sim,'mse')
+            # print (observations['rgb_clip_resnet'].shape)
+            # exit()
+
+            # l2_norm = torch.norm(out_1-out_2,p=2,dim=-1)
+            # exit()
+
+            # print (l2_norm,'l2 norm')
+
+            # cos_sim = self.cosine_similarity(memory_inp,beliefs_inp).unsqueeze(-1)
+
+            # print (cos_sim.shape,'cosine')
+            # exit()
+            
+            # tethered_out = self.out_mlp(cos_sim)
+
+            tethered_out = cos_sim
+
+            # print (tethered_out.shape)
+
+            obs_embeds = obs_embeds.view(nsteps,nsamplers,-1)
+            tethered_out = tethered_out.view(nsteps,nsamplers,-1)
+
             beliefs = beliefs_combined
 
             # actor_pred_distr = self.actor(beliefs)
@@ -712,7 +837,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             
             actor_distr = CategoricalDistr(logits=action_logits)
 
-            output_distr = MultiDimActionDistr(actor_distr, ask_pred_distr,done_prob_updated)
+            output_distr = MultiDimActionDistr(actor_distr, ask_pred_distr,done_prob_updated,torch.sigmoid(tethered_out)) ##sigmoid to change to probability
 
             # 4. prepare output
             extras = (
@@ -726,6 +851,8 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                         "model_action_logits":actor_pred_distr.logits,
                         "expert_actions":observations['expert_action'],
                         "prev_actions":prev_actions,
+                        "tethered_output": tethered_out if self.tethered_policy_memory else None,
+                        "memory_input": memory_inp if self.tethered_policy_memory else None,
                         "aux_model": (
                             self.aux_models[aux_uuid]
                             if aux_uuid in self.aux_models

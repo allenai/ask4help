@@ -241,6 +241,29 @@ class SceneNameSensor(Sensor):
         return np.array([train,scn_idx_mid,scn_idx_end])        
 
 
+class SceneObjCountSensor(Sensor):
+    def __init__(self,uuid='scene_object_count',**kwargs:Any) -> Any:
+
+        observation_space = self._get_observation_space()
+
+        super().__init__(**prepare_locals_for_super(locals()))
+
+    def _get_observation_space(self):
+
+        return gym.spaces.Discrete(1) 
+
+    def get_observation(self,env,task,*args: Any, **kwargs: Any) -> Any:
+
+        scene_obj_count = task.task_info['scene_object_count']
+
+        return np.array([scene_obj_count])
+
+
+
+
+         
+
+        
 
 
 

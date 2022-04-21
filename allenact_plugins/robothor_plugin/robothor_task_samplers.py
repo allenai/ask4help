@@ -320,6 +320,13 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             )
             for scene in scenes
         }
+
+        self.len_ep = {
+            scene: len(ObjectNavDatasetTaskSampler.load_dataset(
+                scene, scene_directory + "/episodes"
+            ))
+            for scene in scenes
+        }
    
         # Only keep episodes containing desired objects
         if 'object_types' in kwargs:
@@ -444,9 +451,11 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
     def next_task(self, force_advance_scene: bool = False) -> Optional[ObjectNavTask]:
 
         if self._last_sampled_task is not None:
-            prev_scene = self._last_sampled_task.task_info['scene_name']
-            prev_object = self._last_sampled_task.task_info['object_type']
-            # current_scene_object_count = self._last_sampled_task.task_info['scene_object_count']
+            if self.scene_object_count<5:
+                prev_scene = self._last_sampled_task.task_info['scene_name']
+                prev_object = self._last_sampled_task.task_info['object_type']
+            else:
+                self.scene_object_count = 0    
 
         '''
         self._last_sampled_task.episode_count ## count how many times same object and same scene have happened, reset after every 5 combinations
@@ -465,32 +474,20 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         scene = self.scenes[self.scene_index]
         episode = self.episodes[scene][self.episode_index]
 
-        
-        if self._last_sampled_task is not None: 
-            if (scene==prev_scene):
-                if prev_object == episode['object_type']:
+        if self._last_sampled_task is not None:
+            if self.scene_object_count!=0: 
+                if (scene==prev_scene) and (prev_object == episode['object_type']):
                     self.scene_object_count+=1
                 else:
+                    self.episode_index += 1
                     return self.next_task()          
             else:
-                return self.next_task()
-        
-        '''
-        if self.scene_object_count!=0:
-            if (scene==prev_scene): #and (episode['object_type']== prev_object):
-                if episode['object_type']!= "Television":
-                    self.scene_object_count+=1
-                    self.next_task()
-                
                 self.scene_object_count+=1
-                # exit()
-            else:
-                # exit()
-                self.scene_object_count+=1
-                self.next_task()
         else:
-            self.scene_object_count+=1      
-        '''    
+            self.scene_object_count+=1 
+
+        print (scene,episode['object_type'],'scene object pair')    
+
         if self.env is None:
             self.env = self._create_environment()
 
