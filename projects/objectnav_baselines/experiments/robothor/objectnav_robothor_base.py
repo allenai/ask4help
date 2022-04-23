@@ -18,7 +18,7 @@ class ObjectNavRoboThorBaseConfig(ObjectNavThorBaseConfig, ABC):
 
     AGENT_MODE = "locobot"
 
-    DEFAULT_NUM_TRAIN_PROCESSES = 1 if torch.cuda.is_available() else 1
+    DEFAULT_NUM_TRAIN_PROCESSES = 60 if torch.cuda.is_available() else 2
 
     NUM_STEPS = 128//2
 

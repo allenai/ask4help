@@ -1,5 +1,6 @@
 import math
 from typing import Tuple, List, Dict, Any, Optional, Union, Sequence, cast
+import os
 
 import gym
 import numpy as np
@@ -19,7 +20,7 @@ from allenact_plugins.robothor_plugin.robothor_constants import (
     LOOK_DOWN,
 )
 from allenact_plugins.robothor_plugin.robothor_environment import RoboThorEnvironment
-
+import skimage.io as io
 
 def spl_metric(
     success: bool, optimal_distance: float, travelled_distance: float
@@ -263,7 +264,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.tethered_called_end = False
         self.tethered_called_correct_end = False
         self.tethered_confidence = 0.0
-        
+        self.sim_scores = []
 
     @property
     def action_space(self):
@@ -284,11 +285,34 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         ask_action = action['ask_action']
         ask_action = cast(int,ask_action)
         done_action_prob = action['done_prob'][0]
-        tethered_done = action['tethered_done'][0]
+
 
         if self.task_info['scene_object_count']==1:
             ask_action=0 # always expert ##for first scene_object_pair
-        ask_action = 0     
+        ask_action = 0 ##always expert for all the trajectories
+
+        '''
+        if self.task_info['scene_object_count']==4:
+            frame = self.env.last_event.frame
+            step_taken_by = 'exp' if self.expert_took_step else 'agent'
+            path = './storage/frames/traj_{}_{}_{}'.format(self.task_info['scene_object_count'],self.task_info['object_type'],self.env.scene_name)
+            if not os.path.exists(path):
+                os.mkdir(path)
+            frame_path = os.path.join(path,'frame_{}_{}.png'.format(step_taken_by,self.num_steps_taken()))
+            io.imsave(frame_path,frame)
+            # io.imsave('./storage/frames/traj_2/frame_{}.png'.format(self.num_steps_taken()),frame)
+
+        if self.task_info['scene_object_count']==1:
+            frame = self.env.last_event.frame
+            step_taken_by = 'exp' if self.expert_took_step else 'agent'
+            path = './storage/frames/traj_{}_{}_{}'.format(self.task_info['scene_object_count'],self.task_info['object_type'], self.env.scene_name)
+            if not os.path.exists(path):
+                os.mkdir(path)
+            frame_path = os.path.join(path, 'frame_{}_{}.png'.format(step_taken_by,self.num_steps_taken()))
+            io.imsave(frame_path, frame)
+            # io.imsave('./storage/frames/traj_1/frame_{}.png'.format(self.num_steps_taken()),frame)
+
+        '''
 
         if ask_action==0:
             # print ('expert takes step')
@@ -302,8 +326,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             # print ('agent takes step')  
             ask_action_str = 'stop_asking'  
             self.agent_asked_for_help = False 
-            # self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
-            self.expert_action_span = 0 ##reset counter  
+            self.expert_action_span = 0 ##reset counter
 
 
         action = action['nav_action']
@@ -315,18 +338,6 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
         action_str = self.class_action_names()[action]
 
-        print (tethered_done,self.task_info['scene_object_count'],self.num_steps_taken())  
-        
-        
-        '''
-        if tethered_done>0.10:
-            action_str = END
-            self.tethered_called_end = True
-            self.agent_asked_for_help = False 
-        '''    
-            
-        # print (self.num_steps_taken(),self.task_info['scene_object_count'],'in the task')    
-
         if self.mirror:
             if action_str == ROTATE_RIGHT:
                 action_str = ROTATE_LEFT
@@ -337,46 +348,19 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.task_info["taken_ask_actions"].append(ask_action_str)
 
         if action_str == END:
-            # if ask_action==3:
-            #     print ('logic error in ask action END')
-            #     exit()
-            self.tethered_confidence = tethered_done
-
-            print (self.tethered_confidence,self.task_info['scene_object_count'])  
-
-            # if self.task_info['scene_object_count']==4:
-            #     exit()
 
             if self.expert_took_step is True:
                 self.expert_ended_traj = True
-            # print (self.expert_ended_traj,'expert ending traj?')    
             self._took_end_action = True
+
             ### letting expert end the trajectory
             self._success = self._is_goal_in_range()
-            if tethered_done>0.10:
-                self.tethered_called_end = True
-                self.expert_ended_traj = False
-                if self._success:
-                    self.tethered_called_correct_end = True 
+
             self.end_action_prob = done_action_prob
             if not self._success:
                 self.false_stop = 1
             self.last_action_success = self._success
-    
-            # else:
-            #     ## agent called end. 
-            #     if done_action_prob<0: ## basically no threshold
-            #         #0.80:
-            #         ## not letting it call done 
-            #         self.last_action_success = True
-            #         pass 
-            #     else:
-            #         self._took_end_action = True
-            #         self._success = self._is_goal_in_range()
-            #         self.end_action_prob = done_action_prob
-            #         if not self._success:
-            #             self.false_stop = 1
-            #         self.last_action_success = self._success
+
         else:
             self.env.step({"action": action_str})
             self.last_action_success = self.env.last_action_success
@@ -526,10 +510,6 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
             expert_action_ratio = self.num_steps_expert/self.num_steps_taken()
 
-            if self._took_end_action:
-
-                print (self.num_steps_taken())
-                exit() 
 
             metrics = {
                 **metrics,

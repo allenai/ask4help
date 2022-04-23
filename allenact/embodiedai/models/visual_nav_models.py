@@ -7,6 +7,7 @@ import gym
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 from gym.spaces.dict import Dict as SpaceDict
 
 from allenact.algorithms.onpolicy_sync.policy import (
@@ -52,17 +53,16 @@ class MultiDimActionDistr(Distr):
     Takes two categorical distributions and outputs a joint multidimensional distributions
     '''
 
-    def __init__(self,actor_distr,label_distr,done_prob,tethered_done_score):
+    def __init__(self,actor_distr,label_distr,done_prob):
         super().__init__()
         self.actor_distr = actor_distr
         self.label_distr = label_distr
         self.done_prob = done_prob
-        self.tethered_done = tethered_done_score
 
     def sample(self):
          actor_out = self.actor_distr.sample()
          label_out = self.label_distr.sample()
-         return {"nav_action": actor_out, "ask_action": label_out,"done_prob":self.done_prob,"tethered_done":self.tethered_done}
+         return {"nav_action": actor_out, "ask_action": label_out,"done_prob":self.done_prob,}
 
     def log_prob(self,value):
         return self.label_distr.log_prob(value["ask_action"]) #+ self.actor_distr.log_prob(value["nav_action"]) 
@@ -70,7 +70,7 @@ class MultiDimActionDistr(Distr):
     def entropy(self):
         return self.label_distr.entropy() #+ self.actor_distr.entropy() 
     def mode(self):
-        return {"nav_action":self.actor_distr.mode(),"ask_action":self.label_distr.mode(),"done_prob":self.done_prob,"tethered_done":self.tethered_done}
+        return {"nav_action":self.actor_distr.mode(),"ask_action":self.label_distr.mode(),"done_prob":self.done_prob,}
 
 class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
     """Base class of visual navigation / manipulation (or broadly, embodied AI)
@@ -240,13 +240,21 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             
     def create_tethered_policy(self):
 
-        self.shared_mlp = nn.Sequential(nn.Linear(1568,1568//2),nn.ReLU(),nn.Linear(1568//2,512))
+        # self.shared_mlp = nn.Sequential(nn.Linear(1568,1568//2),nn.ReLU(),nn.Linear(1568//2,512))
         # self.obs_mlp = nn.Sequential(nn.Linear(1568,1568//2),nn.ReLU(),nn.Linear(1568//2,512))
         # self.target_mlp = nn.Sequential(nn.Linear(1568,1568//2),nn.ReLU(),nn.Linear(1568//2,512))
         # inp_size = num_steps*num_processes
-        self.cosine_similarity = nn.CosineSimilarity(dim=1,eps=1e-6)
-        self.mse_loss = nn.MSELoss(reduction='none')
-        self.out_mlp = nn.Linear(1,1)
+        # self.cosine_similarity = nn.CosineSimilarity(dim=1,eps=1e-6)
+        # self.mse_loss = nn.MSELoss(reduction='none')
+        # self.out_mlp = nn.Linear(1,1)
+
+        self.null_belief = nn.Parameter(torch.zeros(1,1,512))
+        self.null_act = torch.softmax(torch.ones(1,1,6),dim=-1)
+
+        self.weight_mlp = nn.Sequential(nn.Linear(512*(21+21+1),512),nn.ReLU(),nn.Linear(512,256),nn.ReLU(),nn.Linear(256,21))
+
+
+        self.clip_obs_traj = None
     
     def create_expert_encoder(self,
         input_size: int,
@@ -399,8 +407,8 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             self.belief_names += self.scenes_list
 
             num_objects = len(self.objects_list)
-            embedding_dim = 2048#1568 #512 #2048#1568
-            num_steps = 5
+            embedding_dim = 512#2048#1568 #512 #2048#1568
+            num_steps = 20
 
             ## add dimension for steps 
             ## change embedding_dim to 512
@@ -411,18 +419,49 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                     (
                         ("layer", self.num_recurrent_layers),
                         ("sampler", None),
-                        # ("expert_step",num_steps),
-                        ("object_dim",num_objects),
+                        ("object_dim", num_objects),
+                        ("expert_step",num_steps),
                         ("hidden", embedding_dim),
-                        ("h",7),
-                        ("w",7)
                     ),
                     torch.float32,
                 )
                 for memory_key in self.scenes_list
             }
 
-            merged_dict = {**out_dict1,**out_dict2}
+            self.scenes_count = [scn + '_count' for scn in self.scenes_list]
+            self.belief_names+=self.scenes_count
+
+            out_dict3 = {
+                memory_key: (
+                    (
+                        ("layer", self.num_recurrent_layers),
+                        ("sampler", None),
+                        ("object_dim", num_objects),
+                        ("expert_count",20),
+                    ),
+                    torch.float32,
+                )
+                for memory_key in self.scenes_count
+            }
+
+
+            self.scenes_act = [scn + '_act' for scn in self.scenes_list]
+            self.belief_names += self.scenes_act
+            out_dict4 = {
+                memory_key: (
+                    (
+                        ("layer", self.num_recurrent_layers),
+                        ("sampler", None),
+                        ("object_dim", num_objects),
+                        ("expert_step",num_steps),
+                        ("one_hot_action",6),
+                    ),
+                    torch.float32,
+                )
+                for memory_key in self.scenes_act
+            }
+
+            merged_dict = {**out_dict1,**out_dict2,**out_dict3,**out_dict4}
 
             return merged_dict
 
@@ -486,8 +525,6 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             expert_action = expert_action_obs[:,:,0]
             expert_action_mask = expert_action_obs[:,:,1]
 
-            
-
             nactions = self.nav_action_space.n
 
             expert_mask_embed = self.expert_mask_embedder(expert_action_mask)
@@ -498,16 +535,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             obs_emb_size = obs_embeds.size(-1)
             nsteps,nsamplers,_ = obs_embeds.shape
 
-            
-
-            clip_resnet_obs =  observations['rgb_clip_resnet'].view(nsteps,nsamplers,2048,7,7)
-
-            # print (clip_resnet_obs.shape)
-            # exit()
-
-            # clip_resnet_obs = F.avg_pool2d(clip_resnet_obs,4).unsqueeze(-1).unsqueeze(-1)
-
-            # clip_resnet_obs  = clip_resnet_obs.view(nsteps,nsteps,-1)
+            clip_resnet_obs = observations['rgb_clip_resnet'].view(nsteps,nsamplers,2048,7,7)
 
             prev_actions_embeds = self.prev_action_embedder(prev_actions['nav_action'])
             joint_embeds = torch.cat((obs_embeds, prev_actions_embeds), dim=-1)  # (T, N, *)
@@ -580,8 +608,10 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 scene_obj_count = observations['scene_object_count']
 
                 # memory_inp = torch.zeros(nsteps,nsamplers,obs_emb_size).to(obs_embeds.device)
-                memory_inp = torch.zeros(nsteps,nsamplers,2048,7,7).to(obs_embeds.device)
+                # memory_inp = torch.zeros(nsteps,nsamplers,2048,7,7).to(obs_embeds.device)
 
+                memory_inp = torch.zeros(nsteps, nsamplers, 20,512).to(obs_embeds.device) ## for storing beliefs
+                memory_act_inp = torch.zeros(nsteps,nsamplers,20,6).to(obs_embeds.device)
                 ## filling up memory 
                 for i,step in enumerate(range(nsteps)):
                     for samp in range(nsamplers):
@@ -603,100 +633,149 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
                         if scn_obj_count==1 and not (masks[step,samp].item()):
                             a = memory.tensor(scene_name).clone()
-
-                            # print (a.shape)
+                            counter = memory.tensor(scene_name + '_count').clone()
+                            counter[:, samp, obj_idx.item(), :][:,0] = torch.tensor([1.])
 
                             # a[:,:,samp,obj_idx.item(),:] *= 0.0
                             # print (a.shape,'memory tensor shape')
                             # exit()
 
-                            a[:,samp,obj_idx.item(),:,:,:] *= 0.0 ##use this for end only version  
+                            # a[:,samp,obj_idx.item(),:,:,:] *= 0.0 ##use this for end only version
+
+                            a[:, samp, obj_idx.item(), :,] *= 0.0  ##use this for end only version
                             memory.set_tensor(scene_name,a)
+                            memory.set_tensor(scene_name+'_count',counter)
                             # exit()
 
-                        memory_inp[step,samp,:,:,:] = memory.tensor(scene_name)[0,samp,obj_idx.item()]
+                        # memory_inp[step,samp,:,:,:] = memory.tensor(scene_name)[0,samp,obj_idx.item()]
+                        memory_inp[step, samp, :,:] = memory.tensor(scene_name)[0, samp, obj_idx.item()]
+                        memory_act_inp[step,samp,:,:] = memory.tensor(scene_name+'_act')[0,samp,obj_idx.item()]
+
+                        '''
+                        if expert_action[step, samp].item() == self.end_action_idx and scn_obj_count==4:
+                            print ('here')
+                        '''
+
+
+
 
                         if scn_obj_count==1:
                             if expert_action_mask[step,samp]:
+
+                                counter = memory.tensor(scene_name+'_count').clone()
+                                count = counter[:,samp,obj_idx.item(),:]
+                                curr_count = torch.nonzero(count[0,:]).item()
+
+                                ##update memory for embedding and counter
+                                a = memory.tensor(scene_name).clone()
+                                a[:,samp,obj_idx.item(),curr_count,:] = beliefs[step,samp,:]
+
+
+                                memory_action = memory.tensor(scene_name+'_act').clone()
+                                curr_action = torch.zeros_like(memory_action[:,samp,obj_idx.item(),curr_count,:])
+
+                                curr_action[:,expert_action[step,samp].item()] = 1.0
+                                memory_action[:, samp, obj_idx.item(), curr_count, :] = curr_action
+                                counter[0,samp,obj_idx.item(),:] = torch.cat((count[:,-1:], count[:,:-1]), dim=-1)  ##counter shifted by 1
+
+                                memory.set_tensor(scene_name+'_count',counter)
+                                memory.set_tensor(scene_name,a)
+                                memory.set_tensor(scene_name+'_act',memory_action)
+
+                                '''
                                 if expert_action[step,samp].item() == self.end_action_idx:
 
-                                    a = memory.tensor(scene_name).clone() ## a is only one dimensional since its a per step thing 
+                                    a = memory.tensor(scene_name).clone() ## a is only one dimensional since its a per step thing
 
-                                    if a[:,samp,obj_idx.item(),:,:,:].sum()==0:
+                                    # if a[:,samp,obj_idx.item(),:,:,:].sum()==0:
+                                    if a[:, samp, obj_idx.item(), :,].sum() == 0:
                                         print ('memory updated')
-                                        print (clip_resnet_obs[step,samp,:].shape)
+                                        # print (clip_resnet_obs[step,samp,:].shape)
                                         # a[:,samp,obj_idx.item(),:] = obs_embeds[step,samp,:]
-                                        a[:,samp,obj_idx.item(),:,:,:] = clip_resnet_obs[step,samp,:,:,:]
-                                        # a[:,samp,obj_idx.item(),:] = joint_embeds[step,samp,:]
+                                        # a[:,samp,obj_idx.item(),:,:,:] = clip_resnet_obs[step,samp,:,:,:]
+                                        a[:,samp,obj_idx.item(),:] = beliefs[step,samp,:]
                                         # exit()
 
                                     memory.set_tensor(scene_name,a)   
                                 else:
-                                    continue  
+                                    continue 
+                                '''
                             else:
                                 continue
 
             obs_embeds = obs_embeds.view(nsteps*nsamplers,-1)
-            # memory_inp = memory_inp.view(nsteps*nsamplers,-1)
-            beliefs_inp = beliefs.view(nsteps*nsamplers,-1)
+            memory_inp = memory_inp.view(nsteps*nsamplers,20,-1)
+            memory_act_inp = memory_act_inp.view(nsteps*nsamplers,20,-1)
+            beliefs_inp = beliefs.view(nsteps*nsamplers,-1).unsqueeze(1)
 
-            joint_embeds_inp = joint_embeds.view(nsteps*nsamplers,-1)
+            null_belief_inp = self.null_belief.repeat(nsteps,nsamplers,1)
+            null_belief_inp = null_belief_inp.view(nsteps*nsamplers,-1).unsqueeze(1)
+
+            null_act_inp = self.null_act.repeat(nsteps,nsamplers,1)
+            null_act_inp = null_act_inp.view(nsteps*nsamplers,-1).unsqueeze(1)
+
+            memory_act_with_null_inp = torch.cat((memory_act_inp,null_act_inp),dim=1)
+
+            memory_with_null_inp = torch.cat((memory_inp,null_belief_inp),dim=1)
+
+            weight_mlp_inp = torch.cat((beliefs_inp,memory_with_null_inp,memory_with_null_inp*beliefs_inp),dim=1)
+
+            weight_mlp_inp = weight_mlp_inp.view(nsteps*nsamplers,-1)
+
+            attn_wts = self.weight_mlp(weight_mlp_inp).unsqueeze(1)
+
+            weighted_actions = torch.bmm(attn_wts,memory_act_with_null_inp)
+
+            weighted_actions = weighted_actions.squeeze(1).view(nsteps,nsamplers,-1)
+            weighted_actions = torch.softmax(weighted_actions,dim=-1)
+
+            ##pass this into auxiliary loss, GT is expert action at that step. Loss simple cross entropy
+            '''
+            beliefs_inp = beliefs_inp.unsqueeze(1)
+            memory_inp = memory_inp.permute(0,2,1)
+
+            beliefs_dim = beliefs_inp.shape[-1]
+
+            energy = torch.bmm(beliefs_inp,memory_inp) ## [B,1,T]
+            energy = torch.softmax(energy.mul_(np.sqrt(1/beliefs_dim)),dim=-1)
+            weighted_actions = torch.bmm(energy,memory_act_inp) ## [B,1,6]
+            '''
+            # joint_embeds_inp = joint_embeds.view(nsteps*nsamplers,-1)
 
             # out_1 = self.shared_mlp(obs_embeds) #self.obs_mlp(obs_embeds)
             # out_2 = self.shared_mlp(memory_inp) #self.target_mlp(memory_inp)
-
-            # print (out_1.shape,out_2.shape)
-
             # clip_resnet_obs = clip_resnet_obs.view(nsteps*nsamplers,-1)
 
             # print (clip_resnet_obs.shape)
             # print (memory_inp.shape)
 
-            clip_resnet_obs = clip_resnet_obs.view(nsteps*nsamplers,-1)
-            memory_inp = memory_inp.view(nsteps*nsamplers,-1)
+            # clip_resnet_obs = clip_resnet_obs.view(nsteps*nsamplers,-1)
+            # memory_inp = memory_inp.view(nsteps*nsamplers,-1)
 
-            print (clip_resnet_obs.sum())
-            print (memory_inp.sum())
+            '''
+            if scn_obj_count==2:
+                if self.clip_obs_traj is not None:
+                    self.clip_obs_traj = None
 
-            # cos_sim = self.mse_loss(obs_embeds,memory_inp).mean(-1).unsqueeze(-1)
+            if scn_obj_count==4:
+                if self.clip_obs_traj is None:
+                    self.clip_obs_traj = beliefs_inp
+                    # self.clip_obs_traj = clip_resnet_obs
+                else:
+                    self.clip_obs_traj = torch.cat((self.clip_obs_traj,beliefs_inp),0)
+                    # self.clip_obs_traj  = torch.cat((self.clip_obs_traj,clip_resnet_obs),0)
 
-            # print (clip_resnet_obs.shape)
-            # print (memory_inp.shape)
+            '''
 
-            cos_sim = torch.mm(clip_resnet_obs,memory_inp.T)
-            print (cos_sim.shape)
-            exit()
-            # exit()
 
-            # cos_sim = self.mse_loss(clip_resnet_obs,clip_resnet_obs).mean(-1).unsqueeze(-1)
-            # cos_sim = self.cosine_similarity(clip_resnet_obs,memory_inp).unsqueeze(-1)
+            # cos_sim = torch.mm(beliefs_inp,memory_inp.T)
+            cos_sim = torch.tensor(0.)
 
-            # print (cos_sim)
-            # exit()
-            # cos_sim = self.mse_loss(joint_embeds_inp,memory_inp).mean(-1).unsqueeze(-1)
-
-            # print (cos_sim,'mse')
-            # print (observations['rgb_clip_resnet'].shape)
-            # exit()
-
-            # l2_norm = torch.norm(out_1-out_2,p=2,dim=-1)
-            # exit()
-
-            # print (l2_norm,'l2 norm')
-
-            # cos_sim = self.cosine_similarity(memory_inp,beliefs_inp).unsqueeze(-1)
-
-            # print (cos_sim.shape,'cosine')
-            # exit()
-            
             # tethered_out = self.out_mlp(cos_sim)
+            # tethered_out = cos_sim
 
-            tethered_out = cos_sim
-
-            # print (tethered_out.shape)
 
             obs_embeds = obs_embeds.view(nsteps,nsamplers,-1)
-            tethered_out = tethered_out.view(nsteps,nsamplers,-1)
 
             beliefs = beliefs_combined
 
@@ -736,7 +815,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 out = self.residual_mlp(policy_residual)
 
                 out_logits = self.fusion_mlp(torch.cat((out,actor_distr.logits),dim=-1))
-                actor_pred_distr  = CategoricalDistr(logits=out_logits) 
+                actor_pred_distr = CategoricalDistr(logits=out_logits)
 
             else:
                 actor_pred_distr = self.actor(beliefs)
@@ -837,7 +916,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             
             actor_distr = CategoricalDistr(logits=action_logits)
 
-            output_distr = MultiDimActionDistr(actor_distr, ask_pred_distr,done_prob_updated,torch.sigmoid(tethered_out)) ##sigmoid to change to probability
+            output_distr = MultiDimActionDistr(actor_distr, ask_pred_distr,done_prob_updated) ##sigmoid to change to probability
 
             # 4. prepare output
             extras = (
@@ -851,8 +930,9 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                         "model_action_logits":actor_pred_distr.logits,
                         "expert_actions":observations['expert_action'],
                         "prev_actions":prev_actions,
-                        "tethered_output": tethered_out if self.tethered_policy_memory else None,
+                        # "tethered_output": tethered_out if self.tethered_policy_memory else None,
                         "memory_input": memory_inp if self.tethered_policy_memory else None,
+                        "weighted_actions":weighted_actions if self.tethered_policy_memory else None,
                         "aux_model": (
                             self.aux_models[aux_uuid]
                             if aux_uuid in self.aux_models

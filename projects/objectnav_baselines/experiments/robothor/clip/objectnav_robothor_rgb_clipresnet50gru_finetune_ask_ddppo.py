@@ -217,7 +217,8 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
 
         action_space = gym.spaces.Dict({"nav_action": gym.spaces.Discrete(len(ObjectNavTask.class_action_names())),
                                      "ask_action": gym.spaces.Discrete(2),"done_prob":gym.spaces.Box(-10.0,10.0,(1,),"float32"),
-                                     "tethered_done":gym.spaces.Box(-10.0,10.0,(1,),"float32")})
+                                     # "tethered_done":gym.spaces.Box(-10.0,10.0,(1,),"float32")
+                                        })
                                        
                                     ##NEW ACTIONS : 0 means expert step, 1 means agent step
                                     #OLD ACTIONS : 2 means stop asking, 1 means start asking, 0 means do nothing

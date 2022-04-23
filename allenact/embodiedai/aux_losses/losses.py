@@ -200,7 +200,8 @@ class TetheredImitationLoss(AuxiliaryLoss):
 
     def __init__(self,*args,**kwargs):
         super().__init__(auxiliary_uuid=self.UUID,**kwargs)
-        self.cross_entropy_loss = nn.BCEWithLogitsLoss(reduction='none')
+        # self.cross_entropy_loss = nn.BCEWithLogitsLoss(reduction='none')
+        self.cross_entropy_loss = nn.CrossEntropyLoss(reduction='none')
 
     def get_aux_loss(
         self,
@@ -213,16 +214,35 @@ class TetheredImitationLoss(AuxiliaryLoss):
         actions: torch.FloatTensor,
         beliefs: torch.FloatTensor,
         masks: torch.FloatTensor,
-        tethered_output: torch.FloatTensor,
+        # tethered_output: torch.FloatTensor,
         memory_input: torch.FloatTensor,
+        weighted_actions: torch.FloatTensor,
         *args,
         **kwargs):
 
-        nsteps,nsamplers,_  = masks.shape
+        nsteps,nsamplers,_ = masks.shape
 
         expert_action_mask = observations['expert_action'][:,:,1]
-        tethered_output =  tethered_output.view(nsteps*nsamplers,-1)
+        expert_actions = observations['expert_action'][:,:,0]
+        # tethered_output = tethered_output.view(nsteps*nsamplers,-1)
 
+        weighted_actions = weighted_actions.view(nsteps*nsamplers,-1)
+        expert_actions = expert_actions.view(nsteps*nsamplers)
+
+        loss = self.cross_entropy_loss(weighted_actions,expert_actions)
+        expert_action_mask = expert_action_mask.view(nsteps*nsamplers)
+
+        num_valid_losses = expert_action_mask.sum()
+        loss = loss*expert_action_mask
+
+        avg_loss = loss.sum()/torch.clamp(num_valid_losses,min=1.0)
+
+        return (
+            avg_loss,
+            {"total": cast(torch.Tensor, avg_loss).item(),},
+        )
+
+        ''''
         gt = torch.zeros(nsteps,nsamplers).to(beliefs.device)
 
         inv_masks = (1 - masks).squeeze(-1) 
@@ -254,7 +274,7 @@ class TetheredImitationLoss(AuxiliaryLoss):
             {"total": cast(torch.Tensor, avg_loss).item(),},
         )
 
-
+        '''
 
 
 class SupImitationLoss(AuxiliaryLoss):
