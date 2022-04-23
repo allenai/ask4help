@@ -522,9 +522,9 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 "longest_span_of_expert":self.max_expert_span,
                 "done_action_prob": self.end_action_prob,
                 "expert_ends_traj":self.expert_ended_traj,
-                "tethered_called_end":self.tethered_called_end,
-                "tethered_called_correct_end":self.tethered_called_correct_end,
-                "tethered_confidence":self.tethered_confidence,
+                # "tethered_called_end":self.tethered_called_end,
+                # "tethered_called_correct_end":self.tethered_called_correct_end,
+                # "tethered_confidence":self.tethered_confidence,
                 "spl": 0 if spl is None else spl,
             }
         return metrics

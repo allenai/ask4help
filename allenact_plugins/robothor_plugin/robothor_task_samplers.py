@@ -486,7 +486,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         else:
             self.scene_object_count+=1 
 
-        print (scene,episode['object_type'],'scene object pair')    
+        # print (scene,episode['object_type'],'scene object pair')    
 
         if self.env is None:
             self.env = self._create_environment()

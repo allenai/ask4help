@@ -653,17 +653,20 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
                         '''
                         if expert_action[step, samp].item() == self.end_action_idx and scn_obj_count==4:
-                            print ('here')
+                            pass
                         '''
-
-
-
-
                         if scn_obj_count==1:
                             if expert_action_mask[step,samp]:
 
                                 counter = memory.tensor(scene_name+'_count').clone()
                                 count = counter[:,samp,obj_idx.item(),:]
+
+                                # print (count.shape)
+                                # print (count[0,:])
+                                print (torch.nonzero(count[0,:]))
+                                # print (torch.nonzero(count[0,:]).item())
+
+                                # exit()
                                 curr_count = torch.nonzero(count[0,:]).item()
 
                                 ##update memory for embedding and counter
@@ -709,10 +712,10 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             beliefs_inp = beliefs.view(nsteps*nsamplers,-1).unsqueeze(1)
 
             null_belief_inp = self.null_belief.repeat(nsteps,nsamplers,1)
-            null_belief_inp = null_belief_inp.view(nsteps*nsamplers,-1).unsqueeze(1)
+            null_belief_inp = null_belief_inp.view(nsteps*nsamplers,-1).unsqueeze(1).to(beliefs.device)
 
             null_act_inp = self.null_act.repeat(nsteps,nsamplers,1)
-            null_act_inp = null_act_inp.view(nsteps*nsamplers,-1).unsqueeze(1)
+            null_act_inp = null_act_inp.view(nsteps*nsamplers,-1).unsqueeze(1).to(beliefs.device)
 
             memory_act_with_null_inp = torch.cat((memory_act_inp,null_act_inp),dim=1)
 
