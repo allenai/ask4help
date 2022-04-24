@@ -238,7 +238,7 @@ class TetheredImitationLoss(AuxiliaryLoss):
         avg_loss = loss.sum()/torch.clamp(num_valid_losses,min=1.0)
 
         return (
-            avg_loss,
+            avg_loss*0,
             {"total": cast(torch.Tensor, avg_loss).item(),},
         )
 

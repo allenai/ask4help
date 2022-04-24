@@ -599,7 +599,6 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
                     memory.set_tensor('single_belief',beliefs_updated)
                  
-            
 
             if self.tethered_policy_memory:
                 goal_object_idx = observations['goal_object_type_ind']
@@ -634,10 +633,13 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                         if scn_obj_count==1 and not (masks[step,samp].item()):
                             a = memory.tensor(scene_name).clone()
                             counter = memory.tensor(scene_name + '_count').clone()
+                            act_mem = memory.tensor(scene_name + '_act').clone()
+
+                            act_mem[:,samp,obj_idx.item(),:,:]*=0.0
+                            counter[:,samp,obj_idx.item(),:] *= 0.0
                             counter[:, samp, obj_idx.item(), :][:,0] = torch.tensor([1.])
 
                             # a[:,:,samp,obj_idx.item(),:] *= 0.0
-                            # print (a.shape,'memory tensor shape')
                             # exit()
 
                             # a[:,samp,obj_idx.item(),:,:,:] *= 0.0 ##use this for end only version
@@ -645,7 +647,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                             a[:, samp, obj_idx.item(), :,] *= 0.0  ##use this for end only version
                             memory.set_tensor(scene_name,a)
                             memory.set_tensor(scene_name+'_count',counter)
-                            # exit()
+                            memory.set_tensor(scene_name+'_act',act_mem)
 
                         # memory_inp[step,samp,:,:,:] = memory.tensor(scene_name)[0,samp,obj_idx.item()]
                         memory_inp[step, samp, :,:] = memory.tensor(scene_name)[0, samp, obj_idx.item()]
@@ -660,14 +662,10 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
                                 counter = memory.tensor(scene_name+'_count').clone()
                                 count = counter[:,samp,obj_idx.item(),:]
+                                non_zero = torch.nonzero(count[0,:]).shape[0]
 
-                                # print (count.shape)
-                                # print (count[0,:])
-                                print (torch.nonzero(count[0,:]))
-                                # print (torch.nonzero(count[0,:]).item())
-
-                                # exit()
                                 curr_count = torch.nonzero(count[0,:]).item()
+
 
                                 ##update memory for embedding and counter
                                 a = memory.tensor(scene_name).clone()
