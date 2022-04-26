@@ -212,15 +212,27 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         rnn_type:str,
         ask_gru_hidden_size=128,
         trainable_masked_hidden_state=False,
+        adaptive_reward=False,
         ):
-
-        mlp_input_size = self._hidden_size+48+prev_action_embed_size ## 6 for prev action embedding
 
         self.prev_ask_action_embedder = FeatureEmbedding(
             input_size=self.ask_action_space.n,
             output_size=prev_action_embed_size,
         )
 
+        self.expert_mask_embedder = FeatureEmbedding(input_size=2,output_size=prev_action_embed_size)
+
+        if adaptive_reward:
+            self.reward_function_embedder = FeatureEmbedding(input_size=42,output_size=prev_action_embed_size*2)
+        else:
+            self.reward_function_embedder = None     
+
+        if adaptive_reward:
+            mlp_input_size = self._hidden_size + 48 + prev_action_embed_size + prev_action_embed_size + prev_action_embed_size*2 
+            ## ask_action + expert_action embedding + reward_function_embed
+        else:
+            mlp_input_size = self._hidden_size + 48 + prev_action_embed_size + prev_action_embed_size 
+                
         self.ask_policy_mlp = nn.Sequential(
             nn.Linear(mlp_input_size,mlp_input_size//2),
             nn.ReLU(),
@@ -337,69 +349,83 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         """
 
         if self.is_finetuned:
+            
+            expert_action_obs = observations['expert_action']
+            expert_action = expert_action_obs[:,:,0]
+            expert_action_mask = expert_action_obs[:,:,1]
+
+            nactions = self.nav_action_space.n
+
             with torch.no_grad():
                 # 1.1 use perception model (i.e. encoder) to get observation embeddings
                 obs_embeds = self.forward_encoder(observations)
-                # 1.2 use embedding model to get prev_action embeddings
+                nsteps,nsamplers,_ = obs_embeds.shape
+
                 prev_actions_embeds = self.prev_action_embedder(prev_actions['nav_action'])
                 joint_embeds = torch.cat((obs_embeds, prev_actions_embeds), dim=-1)  # (T, N, *)
+                if not self.adapt_belief:
 
-                # 2. use RNNs to get single/multiple beliefs
-                beliefs_dict = {}
-                for key, model in self.state_encoders.items():
-
-                    beliefs_dict[key], rnn_hidden_states = model(
-                        joint_embeds, memory.tensor(key), masks
+                    beliefs_dict = {}
+                    for key, model in self.state_encoders.items():
+                        beliefs_dict[key], rnn_hidden_states = model(
+                            joint_embeds, memory.tensor(key), masks
+                        )
+                        memory.set_tensor(key, rnn_hidden_states)  # update memory here
+                
+                    # 3. fuse beliefs for multiple belief models
+                    beliefs, task_weights = self.fuse_beliefs(
+                        beliefs_dict, obs_embeds
                     )
-                    
-                    memory.set_tensor(key, rnn_hidden_states)  # update memory here
-
-                # 3. fuse beliefs for multiple belief models
-                beliefs, task_weights = self.fuse_beliefs(
-                    beliefs_dict, obs_embeds
-                )  # fused beliefs
-
-                # 4. prepare output
-                extras = (
-                    {
-                        aux_uuid: {
-                            "beliefs": (
-                                beliefs_dict[aux_uuid] if self.multiple_beliefs else beliefs
-                            ),
-                            "obs_embeds": obs_embeds,
-                            "aux_model": (
-                                self.aux_models[aux_uuid]
-                                if aux_uuid in self.aux_models
-                                else None
-                            ),
-                        }
-                        for aux_uuid in self.auxiliary_uuids
-                    }
-                    if self.auxiliary_uuids is not None
-                    else {}
-                )
-
-                if self.multiple_beliefs:
-                    extras[MultiAuxTaskNegEntropyLoss.UUID] = task_weights
-
-                expert_action_obs = observations['expert_action']
-                expert_action = expert_action_obs[:,:,0]
-
-                expert_action_mask = expert_action_obs[:,:,1]
-
-                nsteps, nsamplers, _ = beliefs.shape
-                nactions = self.nav_action_space.n
+                    beliefs_combined = beliefs
 
 
             if self.adapt_belief:
-                expert_action_embedding = self.prev_expert_action_embedder(expert_action)
-                res_input = torch.cat((beliefs,expert_action_embedding),dim=-1)
-                beliefs_residual,residual_hidden_states = self.expert_encoder(res_input,memory.tensor('residual_gru'),masks)
-                memory.set_tensor('residual_gru',residual_hidden_states)
+                ### only done when adaptation is switched on###
+                joint_embeds_all = torch.cat((obs_embeds, prev_actions_embeds), dim=-1)
+                beliefs_combined = None
+                for step in range(nsteps):    
+                    # 1.2 use embedding model to get prev_action embeddings
+                    joint_embeds = joint_embeds_all[step,:,:].unsqueeze(0)
+                    masks_step = masks[step,:,:].unsqueeze(0)
+                    
+                    # 2. use RNNs to get single/multiple beliefs
+                    with torch.no_grad():
+                        beliefs_dict = {}
+                        for key, model in self.state_encoders.items():
+                            beliefs_dict[key], rnn_hidden_states = model(
+                                joint_embeds, memory.tensor(key), masks_step
+                            )
+                            
+                            memory.set_tensor(key, rnn_hidden_states)  # update memory here
+                    
+                        # 3. fuse beliefs for multiple belief models
+                        beliefs, task_weights = self.fuse_beliefs(
+                            beliefs_dict, obs_embeds
+                        )  # fused beliefs
 
-                beliefs_residual = beliefs_residual*expert_action_mask.unsqueeze(-1)
+                        if beliefs_combined is None:
+                            beliefs_combined = beliefs
+                        else:
+                            beliefs_combined = torch.cat((beliefs_combined,beliefs),dim=0)
+                    
+                    
+                    expert_action_embedding = self.prev_expert_action_embedder(expert_action[step,:].unsqueeze(0))
+                    res_input = torch.cat((beliefs,expert_action_embedding),dim=-1)
+                    beliefs_residual,residual_hidden_states = self.expert_encoder(res_input,memory.tensor('residual_gru'),masks_step)
+                    memory.set_tensor('residual_gru',residual_hidden_states)
 
-                beliefs = beliefs + beliefs_residual
+                    beliefs_residual = beliefs_residual * expert_action_mask.unsqueeze(-1)[step,:,:].unsqueeze(0)
+
+                    beliefs = beliefs + beliefs_residual
+
+                    # if beliefs_combined is None:
+                    #     beliefs_combined = beliefs
+                    # else:
+                    #     beliefs_combined = torch.cat((beliefs_combined,beliefs),dim=0)    
+
+                    memory.set_tensor('single_belief',beliefs)
+            
+            beliefs = beliefs_combined
 
             with torch.no_grad():
 
@@ -409,16 +435,13 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                     ## making logits of end so small that it's never picked by the agent.
                     actor_pred_distr.logits[:,:,self.end_action_idx] -= 999
 
-                ### modify logits for the END action
 
                 if self.succ_pred_model is None:
                     self.succ_pred_model = succ_pred_model(512).to(beliefs.device)
                     self.succ_pred_model.load_state_dict(
                         torch.load('./storage/best_auc_clip_run_belief_480_rollout_len.pt',
                                     map_location=beliefs.device))
-                # if self.succ_pred_rnn_hidden_state is None:
-                #     self.succ_pred_rnn_hidden_state = torch.zeros(1, nsamplers, 512).to(beliefs.device)
-
+               
                 succ_pred_out, succ_rnn_hidden_states = self.succ_pred_model(beliefs, memory.tensor('succ_pred_gru'),masks)
                 memory.set_tensor('succ_pred_gru', succ_rnn_hidden_states)
                 succ_prob = torch.sigmoid(succ_pred_out)
@@ -428,7 +451,13 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 ask_policy_input = torch.cat((beliefs,succ_prob_inp),dim=-1)
                 
             prev_ask_action_embed = self.prev_ask_action_embedder(prev_actions['ask_action'])
-            ask_policy_input = torch.cat((ask_policy_input,prev_ask_action_embed),dim=-1)
+            expert_mask_embed = self.expert_mask_embedder(expert_action_mask)
+
+            if self.adaptive_reward:
+                reward_config_embed = self.reward_function_embedder(observations['reward_config_sensor'])                
+                ask_policy_input = torch.cat((ask_policy_input,prev_ask_action_embed,expert_mask_embed,reward_config_embed),dim=-1)
+            else:
+                ask_policy_input = torch.cat((ask_policy_input,prev_ask_action_embed,expert_mask_embed),dim=-1)
 
             if self.ask_actor_head is None:
                 print ('initialisation error')
@@ -436,8 +465,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 self.ask_actor_head = LinearActorHead(self._hidden_size+48,self.ask_action_space.n).to(beliefs.device) ## concatenating frozen beliefs with success prediction output
                 self.ask_critic_head = LinearCriticHead(self._hidden_size+48).to(beliefs.device)            
             
-            
-            ask_policy_input = self.ask_policy_mlp(ask_policy_input) ##remove for without mlp
+            ask_policy_input = self.ask_policy_mlp(ask_policy_input)
 
             ask_policy_input,ask_hidden_states = self.ask_policy_gru(ask_policy_input,memory.tensor('ask4help_gru'),masks)
 
@@ -460,6 +488,34 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             actor_distr = CategoricalDistr(logits=action_logits)
 
             output_distr = MultiDimActionDistr(actor_distr, ask_pred_distr)
+
+            # 4. prepare output
+            extras = (
+                {
+                    aux_uuid: {
+                        "beliefs": (
+                            beliefs_dict[aux_uuid] if self.multiple_beliefs else beliefs_combined
+                        ),
+                        "obs_embeds": obs_embeds,
+                        "ask_action_logits":ask_pred_distr.logits,
+                        "model_action_logits":actor_pred_distr.logits,
+                        "expert_actions":observations['expert_action'],
+                        "prev_actions":prev_actions,
+                        "aux_model": (
+                            self.aux_models[aux_uuid]
+                            if aux_uuid in self.aux_models
+                            else None
+                        ),
+                    }
+                    for aux_uuid in self.auxiliary_uuids
+                }
+                if self.auxiliary_uuids is not None
+                else {}
+            )
+
+            if self.multiple_beliefs:
+                extras[MultiAuxTaskNegEntropyLoss.UUID] = task_weights
+
 
             actor_critic_output = ActorCriticOutput(
                 distributions=output_distr,

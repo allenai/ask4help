@@ -2,9 +2,11 @@ import copy
 import gzip
 import json
 import random
+import itertools
 from typing import List, Optional, Union, Dict, Any, cast, Tuple
 
 import gym
+import numpy as np
 
 from allenact.base_abstractions.sensor import Sensor
 from allenact.base_abstractions.task import TaskSampler
@@ -299,9 +301,11 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         env_args: Dict[str, Any],
         action_space: gym.Space,
         rewards_config: Dict,
+        adaptive_reward: bool = False,
         seed: Optional[int] = None,
         deterministic_cudnn: bool = False,
         loop_dataset: bool = True,
+        task_mode: str = 'Train',
         allow_flipping=False,
         env_class=RoboThorEnvironment,
         randomize_materials_in_training: bool = False,
@@ -310,6 +314,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         self.rewards_config = rewards_config
         self.env_args = env_args
         self.scenes = scenes
+        self.task_mode = task_mode
         self.episodes = {
             scene: ObjectNavDatasetTaskSampler.load_dataset(
                 scene, scene_directory + "/episodes"
@@ -333,6 +338,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         self.sensors = sensors
         self.max_steps = max_steps
         self._action_space = action_space
+        self.adaptive_reward = adaptive_reward
         self.allow_flipping = allow_flipping
         self.scene_counter: Optional[int] = None
         self.scene_order: Optional[List[str]] = None
@@ -504,14 +510,70 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             horizon=episode.get("initial_horizon", 0),
         ):
             return self.next_task()
-        self._last_sampled_task = ObjectNavTask(
-            env=self.env,
-            sensors=self.sensors,
-            task_info=task_info,
-            max_steps=self.max_steps,
-            action_space=self._action_space,
-            reward_configs=self.rewards_config,
-        )
+
+        
+        if self.adaptive_reward:
+
+            rewards_config = {
+            "step_penalty":            -0.0,
+            "goal_success_reward":      0.00,
+            "failed_stop_reward":      -15.00,
+            "shaping_weight":           0.00,
+            "penalty_for_init_ask":    -1.00, 
+            "penalty_for_step_ask":    -0.01,
+            }
+
+            
+            init_asked_configs = list(np.linspace(0,5,num=6,endpoint=True))
+            
+            failed_stop_configs = list(np.linspace(0,15,num=7,endpoint=True)) ##trying 13 different reward different configs
+            
+            ##change adaptive reward embedding size in visual_nav_models.py
+            
+            all_configs = [init_asked_configs,failed_stop_configs]
+            combined_configs = list(itertools.product(*all_configs))
+
+            probs = [1/len(combined_configs)]*len(combined_configs)
+
+            if self.task_mode == 'Train':
+                config_idx = np.random.choice(np.arange(len(combined_configs)),1,p=probs)[0]
+                reward = combined_configs[config_idx]
+                init_ask,failed_stop = -1*reward[0],-1*reward[1]
+            else:
+                # config_idx = 15.0
+                failed_stop = -15.0
+                init_ask = -1.0
+
+            
+            rewards_config['failed_stop_reward'] = failed_stop #-1*config_idx ### -1 is important
+            rewards_config['penalty_for_init_ask'] = init_ask
+
+            '''
+            config_idx = np.random.choice(4,1,p=[0.25,0.25,0.25,0.25])[0]
+            rewards_config = adaptive_configs_dict[config_idx]
+            '''
+            
+            task_info['reward_config_idx'] = config_idx #failed_stop_configs.index(config_idx)
+            
+            self._last_sampled_task = ObjectNavTask(
+                env=self.env,
+                sensors=self.sensors,
+                task_info=task_info,
+                max_steps=self.max_steps,
+                action_space=self._action_space,
+                reward_configs=rewards_config,
+            )
+
+
+        else:    
+            self._last_sampled_task = ObjectNavTask(
+                env=self.env,
+                sensors=self.sensors,
+                task_info=task_info,
+                max_steps=self.max_steps,
+                action_space=self._action_space,
+                reward_configs=self.rewards_config,
+            )
         return self._last_sampled_task
 
     def reset(self):

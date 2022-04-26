@@ -190,3 +190,20 @@ class DepthSensorRoboThor(DepthSensorThor):
             "`DepthSensorRoboThor` is deprecated, use `DepthSensorThor` instead."
         )
         super().__init__(*args, **kwargs)
+
+class RewardConfigSensor(Sensor):
+    def __init__(self,uuid='reward_config_sensor', **kwargs: Any):
+
+        observation_space = self._get_observation_space()
+
+        super().__init__(**prepare_locals_for_super(locals()))
+
+    def _get_observation_space(self):
+
+        return gym.spaces.Discrete(1)
+
+    def get_observation(self,env,task,*args: Any, **kwargs: Any) -> Any:
+
+        config_idx = task.task_info['reward_config_idx']
+
+        return np.array(config_idx)        

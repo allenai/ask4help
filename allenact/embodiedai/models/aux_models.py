@@ -15,6 +15,8 @@ from allenact.embodiedai.aux_losses.losses import (
     InverseDynamicsLoss,
     TemporalDistanceLoss,
     CPCALoss,
+    FrequencyLoss,
+    SupImitationLoss
 )
 
 
@@ -32,6 +34,7 @@ class AuxiliaryModel(nn.Module):
         cpca_classifier_hidden_dim: int = 32,
     ):
         super().__init__()
+
         self.aux_uuid = aux_uuid
         self.action_dim = action_dim
         self.obs_embed_dim = obs_embed_dim
@@ -60,6 +63,10 @@ class AuxiliaryModel(nn.Module):
                 nn.Linear(cpca_classifier_hidden_dim, 1),
             )
 
+        elif FrequencyLoss.UUID in self.aux_uuid:
+            pass 
+        elif SupImitationLoss.UUID in self.aux_uuid:
+            pass       
         else:
             raise ValueError("Unknown Auxiliary Loss UUID")
 
