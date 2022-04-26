@@ -251,7 +251,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         self.null_belief = nn.Parameter(torch.zeros(1,1,512))
         self.null_act = torch.softmax(torch.ones(1,1,6),dim=-1)
 
-        self.weight_mlp = nn.Sequential(nn.Linear(1536,512),nn.ReLU(),nn.Linear(512,256),nn.ReLU(),nn.Linear(256,1))
+        self.weight_mlp = nn.Linear(1536,1) #nn.Sequential(nn.Linear(1536,512),nn.ReLU(),nn.Linear(512,256),nn.ReLU(),nn.Linear(256,1))
 
         self.clip_obs_traj = None
     
