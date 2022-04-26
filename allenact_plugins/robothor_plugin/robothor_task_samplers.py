@@ -553,13 +553,13 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         if self.adaptive_reward:
 
             rewards_config = {
-            "step_penalty":            -0.01,
-            "goal_success_reward":      0.00,
-            "failed_stop_reward":      -15.00,
-            "shaping_weight":           0.00,
-            "penalty_for_init_ask":    -1.00, 
-            "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-            "penalty_for_step_ask":    -0.0,
+            "step_penalty":-0.01,
+            "goal_success_reward": 0.00,
+            "failed_stop_reward":-15.00,
+            "shaping_weight": 0.00,
+            "penalty_for_init_ask":-1.00,
+            "penalty_for_ask_recurring":-0.00,#-0.1/4,##decreasing recurring cost
+            "penalty_for_step_ask":-0.0,
             }
 
             failed_stop_configs = list(np.linspace(0,30,num=13,endpoint=True)) ##trying 13 different reward different configs
@@ -571,7 +571,7 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             else:
                 config_idx = 15.0
 
-            rewards_config['failed_stop_reward'] = -1*config_idx ### -1 is important
+            rewards_config['failed_stop_reward'] = -1*config_idx ###-1 is important
             '''
             config_idx = np.random.choice(4,1,p=[0.25,0.25,0.25,0.25])[0]
             

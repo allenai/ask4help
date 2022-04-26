@@ -140,7 +140,7 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
             nprocesses = evenly_distribute_count_into_bins(
                 self.num_test_processes, max(len(devices), 1)
             )
-            # nprocesses=2
+            nprocesses=1
         else:
             raise NotImplementedError("mode must be 'train', 'valid', or 'test'.")
 

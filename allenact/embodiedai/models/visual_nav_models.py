@@ -251,8 +251,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         self.null_belief = nn.Parameter(torch.zeros(1,1,512))
         self.null_act = torch.softmax(torch.ones(1,1,6),dim=-1)
 
-        self.weight_mlp = nn.Sequential(nn.Linear(512*(21+21+1),512),nn.ReLU(),nn.Linear(512,256),nn.ReLU(),nn.Linear(256,21))
-
+        self.weight_mlp = nn.Sequential(nn.Linear(1536,512),nn.ReLU(),nn.Linear(512,256),nn.ReLU(),nn.Linear(256,1))
 
         self.clip_obs_traj = None
     
@@ -719,15 +718,15 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
             memory_with_null_inp = torch.cat((memory_inp,null_belief_inp),dim=1)
 
-            weight_mlp_inp = torch.cat((beliefs_inp,memory_with_null_inp,memory_with_null_inp*beliefs_inp),dim=1)
+            weight_mlp_inp = torch.cat((beliefs_inp.repeat(1,21,1),memory_with_null_inp,memory_with_null_inp*beliefs_inp),dim=-1)
 
-            weight_mlp_inp = weight_mlp_inp.view(nsteps*nsamplers,-1)
+            # weight_mlp_inp = weight_mlp_inp.view(nsteps*nsamplers,-1)
 
-            attn_wts = self.weight_mlp(weight_mlp_inp).unsqueeze(1)
+            attn_wts = self.weight_mlp(weight_mlp_inp)
 
-            weighted_actions = torch.bmm(attn_wts,memory_act_with_null_inp)
+            weighted_actions = (attn_wts*memory_act_with_null_inp).sum(1)
 
-            weighted_actions = weighted_actions.squeeze(1).view(nsteps,nsamplers,-1)
+            weighted_actions = weighted_actions.view(nsteps,nsamplers,-1)
             weighted_actions = torch.softmax(weighted_actions,dim=-1)
 
             ##pass this into auxiliary loss, GT is expert action at that step. Loss simple cross entropy
@@ -741,18 +740,11 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             energy = torch.softmax(energy.mul_(np.sqrt(1/beliefs_dim)),dim=-1)
             weighted_actions = torch.bmm(energy,memory_act_inp) ## [B,1,6]
             '''
-            # joint_embeds_inp = joint_embeds.view(nsteps*nsamplers,-1)
-
             # out_1 = self.shared_mlp(obs_embeds) #self.obs_mlp(obs_embeds)
             # out_2 = self.shared_mlp(memory_inp) #self.target_mlp(memory_inp)
             # clip_resnet_obs = clip_resnet_obs.view(nsteps*nsamplers,-1)
-
-            # print (clip_resnet_obs.shape)
-            # print (memory_inp.shape)
-
             # clip_resnet_obs = clip_resnet_obs.view(nsteps*nsamplers,-1)
             # memory_inp = memory_inp.view(nsteps*nsamplers,-1)
-
             '''
             if scn_obj_count==2:
                 if self.clip_obs_traj is not None:
@@ -767,14 +759,9 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                     # self.clip_obs_traj  = torch.cat((self.clip_obs_traj,clip_resnet_obs),0)
 
             '''
-
-
             # cos_sim = torch.mm(beliefs_inp,memory_inp.T)
             cos_sim = torch.tensor(0.)
-
-            # tethered_out = self.out_mlp(cos_sim)
             # tethered_out = cos_sim
-
 
             obs_embeds = obs_embeds.view(nsteps,nsamplers,-1)
 
