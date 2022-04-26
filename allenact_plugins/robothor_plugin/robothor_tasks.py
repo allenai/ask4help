@@ -255,6 +255,8 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.expert_action_span = 0
         self.max_expert_span = 0
 
+        self.human_action = "ObjectNavHumanAction"
+
         self.penalty_given_once = False
 
     @property
@@ -276,15 +278,18 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         ask_action = action['ask_action']
         ask_action = cast(int,ask_action)
 
+        ask_action=0
+
         if ask_action==0:
-            # print ('expert takes step')
+            # ('expert takes step')
+            self.env.step({"action":self.human_action})
             ask_action_str = 'start_asking'
             self.agent_asked_for_help = True 
             self.help_asked_at_all = True
             self.expert_action_span+=1
 
         if ask_action==1:
-            # print ('agent takes step')  
+            # ('agent takes step')  
             ask_action_str = 'stop_asking'  
             self.agent_asked_for_help = False 
             self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
@@ -320,8 +325,6 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             self.agent_asked_for_help = False
             action_str = END
         '''   
-                
-
         action = action['nav_action']
         assert isinstance(action, int)
         action = cast(int, action)
