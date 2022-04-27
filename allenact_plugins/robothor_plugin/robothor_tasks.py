@@ -278,11 +278,11 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         ask_action = action['ask_action']
         ask_action = cast(int,ask_action)
 
-        ask_action=0
-
         if ask_action==0:
             # ('expert takes step')
             self.env.step({"action":self.human_action})
+
+            exit()
             ask_action_str = 'start_asking'
             self.agent_asked_for_help = True 
             self.help_asked_at_all = True
