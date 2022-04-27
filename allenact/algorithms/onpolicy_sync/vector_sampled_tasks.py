@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 import os
+import sys
 import signal
 import time
 import traceback
@@ -829,18 +830,13 @@ class SingleProcessVectorSampledTasks(object):
         should_log: bool = True,
         parent_stdin: int = -1,
     ) -> None:
-        import sys
-        print("--------- parent_stdin " )
-        print(parent_stdin)
-
-        print("current stdin")
         print(sys.stdin.fileno())
-        # if parent_stdin != -1:
-        #     p_stdin = os.fdopen(parent_stdin)
-        #     print("---- parent ")
-        #     print(p_stdin)
-        #     print(p_stdin.isatty())
-        #     sys.stdin = p_stdin
+        if parent_stdin != -1:
+            p_stdin = os.fdopen(parent_stdin)
+            print("---- Redirecting sdin to parent stdin ")
+            print(parent_stdin)
+            print(p_stdin.isatty())
+            sys.stdin = p_stdin
 
         self._is_closed = True
 

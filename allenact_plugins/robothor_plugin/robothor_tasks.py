@@ -282,7 +282,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             # ('expert takes step')
             self.env.step({"action":self.human_action})
 
-            exit()
+            # exit()
             ask_action_str = 'start_asking'
             self.agent_asked_for_help = True 
             self.help_asked_at_all = True
