@@ -149,7 +149,7 @@ class VectorSampledTasks(object):
         mp_ctx: Optional[BaseContext] = None,
         should_log: bool = True,
         max_processes: Optional[int] = None,
-        parent_stdin: int = -1,
+        parent_stdin: int = None,
     ) -> None:
 
         self._is_waiting = False
@@ -379,7 +379,7 @@ class VectorSampledTasks(object):
         self,
         make_sampler_fn: Callable[..., TaskSampler],
         sampler_fn_args_list: Sequence[Sequence[Dict[str, Any]]],
-        parent_stdin: int = -1
+        parent_stdin: int = None
     ) -> Tuple[List[Callable[[], Any]], List[Callable[[Any], None]]]:
         parent_connections, worker_connections = zip(
             *[self._mp_ctx.Pipe(duplex=True) for _ in range(self._num_processes)]
@@ -828,12 +828,12 @@ class SingleProcessVectorSampledTasks(object):
         sampler_fn_args_list: Sequence[Dict[str, Any]] = None,
         auto_resample_when_done: bool = True,
         should_log: bool = True,
-        parent_stdin: int = -1,
+        parent_stdin: int = None,
     ) -> None:
         print(sys.stdin.fileno())
-        if parent_stdin != -1:
+        if parent_stdin is not None:
             p_stdin = os.fdopen(parent_stdin)
-            print("---- Redirecting sdin to parent stdin ")
+            print("---- Redirecting stdin to parent stdin file descriptor")
             print(parent_stdin)
             print(p_stdin.isatty())
             sys.stdin = p_stdin

@@ -321,18 +321,6 @@ class OnPolicyRunner(object):
         engine_kwargs["mode"] = TRAIN_MODE_STR
         engine_kwargs["worker_id"] = id
 
-        print("---- PARENT STDIN ")
-        print(engine_kwargs["parent_stdin"])
-        # print("current stdin")
-        # print(sys.stdin.fileno())
-        # print(sys.stdin)
-        # if engine_kwargs["parent_stdin"] is not None:
-        #     p_stdin = os.fdopen(engine_kwargs["parent_stdin"])
-        #     print("---- parent ")
-        #     print(p_stdin)
-        #     print(p_stdin.isatty())
-        #     sys.stdin = p_stdin
-
         engine_kwargs_for_print = {
             k: (v if k != "initial_model_state_dict" else "[SUPPRESSED]")
             for k, v in engine_kwargs.items()
