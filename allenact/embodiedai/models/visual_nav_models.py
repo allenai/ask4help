@@ -251,7 +251,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         self.null_belief = nn.Parameter(torch.zeros(1,1,512))
         self.null_act = torch.softmax(torch.ones(1,1,6),dim=-1)
 
-        self.weight_mlp = nn.Linear(1536,1) #nn.Sequential(nn.Linear(1536,512),nn.ReLU(),nn.Linear(512,256),nn.ReLU(),nn.Linear(256,1))
+        self.weight_mlp = nn.Sequential(nn.Linear(1536,512),nn.ReLU(),nn.Linear(512,256),nn.ReLU(),nn.Linear(256,1))
 
         self.clip_obs_traj = None
     
@@ -635,6 +635,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                             act_mem = memory.tensor(scene_name + '_act').clone()
 
                             act_mem[:,samp,obj_idx.item(),:,:]*=0.0
+                            act_mem[:, samp, obj_idx.item(), :, :] = torch.softmax(act_mem[:,samp,obj_idx.item(),:,:],dim=-1)
                             counter[:,samp,obj_idx.item(),:] *= 0.0
                             counter[:, samp, obj_idx.item(), :][:,0] = torch.tensor([1.])
 
@@ -722,7 +723,14 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
             # weight_mlp_inp = weight_mlp_inp.view(nsteps*nsamplers,-1)
 
+            empty_memory_mask = (memory_inp.sum(-1)==0)
+            empty_memory_mask = torch.cat((empty_memory_mask,torch.zeros(nsteps*nsamplers,1).bool()),dim=-1) ##null input is not empty
+
             attn_wts = self.weight_mlp(weight_mlp_inp)
+
+            attn_wts[empty_memory_mask] = -9e10
+
+            attn_wts = torch.softmax(attn_wts,dim=1)
 
             weighted_actions = (attn_wts*memory_act_with_null_inp).sum(1)
 
