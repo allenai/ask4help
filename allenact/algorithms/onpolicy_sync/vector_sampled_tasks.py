@@ -148,6 +148,7 @@ class VectorSampledTasks(object):
         mp_ctx: Optional[BaseContext] = None,
         should_log: bool = True,
         max_processes: Optional[int] = None,
+        parent_stdin: int = -1,
     ) -> None:
 
         self._is_waiting = False
@@ -196,6 +197,7 @@ class VectorSampledTasks(object):
             sampler_fn_args_list=[
                 args_list for args_list in self._partition_to_processes(sampler_fn_args)
             ],
+            parent_stdin=parent_stdin
         )
 
         self._is_closed = False
@@ -287,6 +289,7 @@ class VectorSampledTasks(object):
         should_log: bool,
         child_pipe: Optional[Connection] = None,
         parent_pipe: Optional[Connection] = None,
+        parent_stdin: int = None,
     ) -> None:
         """process worker for creating and interacting with the
         Tasks/TaskSampler."""
@@ -298,6 +301,7 @@ class VectorSampledTasks(object):
             sampler_fn_args_list=sampler_fn_args_list,
             auto_resample_when_done=auto_resample_when_done,
             should_log=should_log,
+            parent_stdin=parent_stdin,
         )
 
         if parent_pipe is not None:
@@ -374,6 +378,7 @@ class VectorSampledTasks(object):
         self,
         make_sampler_fn: Callable[..., TaskSampler],
         sampler_fn_args_list: Sequence[Sequence[Dict[str, Any]]],
+        parent_stdin: int = -1
     ) -> Tuple[List[Callable[[], Any]], List[Callable[[Any], None]]]:
         parent_connections, worker_connections = zip(
             *[self._mp_ctx.Pipe(duplex=True) for _ in range(self._num_processes)]
@@ -410,6 +415,7 @@ class VectorSampledTasks(object):
                     self.should_log,
                     worker_conn,
                     parent_conn,
+                    parent_stdin
                 ),
             )
             self._workers.append(ps)
@@ -821,7 +827,20 @@ class SingleProcessVectorSampledTasks(object):
         sampler_fn_args_list: Sequence[Dict[str, Any]] = None,
         auto_resample_when_done: bool = True,
         should_log: bool = True,
+        parent_stdin: int = -1,
     ) -> None:
+        import sys
+        print("--------- parent_stdin " )
+        print(parent_stdin)
+
+        print("current stdin")
+        print(sys.stdin.fileno())
+        # if parent_stdin != -1:
+        #     p_stdin = os.fdopen(parent_stdin)
+        #     print("---- parent ")
+        #     print(p_stdin)
+        #     print(p_stdin.isatty())
+        #     sys.stdin = p_stdin
 
         self._is_closed = True
 

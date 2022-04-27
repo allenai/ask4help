@@ -131,6 +131,10 @@ class OnPolicyRLEngine(object):
         self.device = torch.device("cpu") if device == -1 else torch.device(device)  # type: ignore
         self.distributed_ip = distributed_ip
         self.distributed_port = distributed_port
+        print("---- OnPolicyRLEngine init")
+
+        self.parent_stdin = kwargs["parent_stdin"] if "parent_stdin" in kwargs else None
+        print(self.parent_stdin)
 
         self.mode = mode.lower().strip()
         assert self.mode in [
@@ -282,6 +286,7 @@ class OnPolicyRLEngine(object):
                 else None,
                 mp_ctx=self.mp_ctx,
                 max_processes=self.max_sampler_processes_per_worker,
+                parent_stdin=self.parent_stdin
             )
         return self._vector_tasks
 
@@ -334,7 +339,7 @@ class OnPolicyRLEngine(object):
                 process_ind=process_offset + it,
                 total_processes=total_processes,
                 devices=sampler_devices_as_ints,
-                seeds=seeds,
+                seeds=seeds
             )
             for it in range(self.num_samplers)
         ]
