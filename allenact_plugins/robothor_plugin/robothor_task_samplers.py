@@ -451,9 +451,12 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
     def next_task(self, force_advance_scene: bool = False) -> Optional[ObjectNavTask]:
 
         if self._last_sampled_task is not None:
-            if self.scene_object_count<5:
+            if self.scene_object_count<4:
                 prev_scene = self._last_sampled_task.task_info['scene_name']
                 prev_object = self._last_sampled_task.task_info['object_type']
+                prev_id = self._last_sampled_task.task_info['id']
+                prev_ep_idx = self._last_sampled_task.task_info['episode_idx']
+                prev_scene_idx = self._last_sampled_task.task_info['scene_idx']
             else:
                 self.scene_object_count = 0    
 
@@ -471,16 +474,30 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             # shuffle the new list of episodes to train on
             random.shuffle(self.episodes[self.scenes[self.scene_index]])
             self.episode_index = 0
-        scene = self.scenes[self.scene_index]
-        episode = self.episodes[scene][self.episode_index]
+
+        # scene = self.scenes[self.scene_index]
+        # episode = self.episodes[scene][self.episode_index]
+
+        if self.scene_object_count!=0:
+            scene = self.scenes[prev_scene_idx]
+            episode = self.episodes[scene][prev_ep_idx]
+        else:
+            scene = self.scenes[self.scene_index]
+            episode = self.episodes[scene][self.episode_index]
 
         if self._last_sampled_task is not None:
-            if self.scene_object_count!=0: 
-                if (scene==prev_scene) and (prev_object == episode['object_type']):
-                    self.scene_object_count+=1
-                else:
+            if self.scene_object_count!=0:
+
+                # if (scene==prev_scene) and (prev_object == episode['object_type']):
+                # if episode['id']== prev_id:
+                self.scene_object_count+=1
+
+                if self.scene_object_count==3:
                     self.episode_index += 1
-                    return self.next_task()          
+                    return self.next_task()
+                # else:
+                #     # self.episode_index += 1
+                #     return self.next_task()
             else:
                 self.scene_object_count+=1
         else:
@@ -534,12 +551,14 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         task_info["id"] = episode["id"]
         task_info['scene_name'] = self.env.scene_name
         task_info['scene_object_count'] = self.scene_object_count
+        task_info['episode_idx'] = self.episode_index
+        task_info['scene_idx'] = self.scene_index
         if self.allow_flipping and random.random() > 0.5:
             task_info["mirrored"] = True
         else:
             task_info["mirrored"] = False
 
-        self.episode_index += 1
+        # self.episode_index += 1 ###change this
         if self.max_tasks is not None:
             self.max_tasks -= 1
         if not self.env.teleport(
