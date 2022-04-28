@@ -724,7 +724,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             # weight_mlp_inp = weight_mlp_inp.view(nsteps*nsamplers,-1)
 
             empty_memory_mask = (memory_inp.sum(-1)==0)
-            empty_memory_mask = torch.cat((empty_memory_mask,torch.zeros(nsteps*nsamplers,1).bool()),dim=-1) ##null input is not empty
+            empty_memory_mask = torch.cat((empty_memory_mask,torch.zeros(nsteps*nsamplers,1).bool().to(beliefs.device)),dim=-1) ##null input is not empty
 
             attn_wts = self.weight_mlp(weight_mlp_inp)
 
