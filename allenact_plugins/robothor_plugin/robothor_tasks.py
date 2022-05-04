@@ -53,6 +53,7 @@ class PointNavTask(Task[RoboThorEnvironment]):
         super().__init__(
             env=env, sensors=sensors, task_info=task_info, max_steps=max_steps, **kwargs
         )
+        print("-------------- INIT")
         self.reward_configs = reward_configs
         self._took_end_action: bool = False
         self._success: Optional[bool] = False
@@ -71,6 +72,7 @@ class PointNavTask(Task[RoboThorEnvironment]):
 
         self.task_info["followed_path"] = [self.env.agent_state()]
         self.task_info["action_names"] = self.action_names()
+
 
     @property
     def action_space(self):
@@ -259,6 +261,44 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
         self.penalty_given_once = False
 
+        # self.env.step({"action": "GetMapViewCameraProperties"})
+        # cameraProps = self.env.last_event.metadata[
+        #     "actionReturn"
+        # ]
+
+        print("--- action GetMapViewCameraProperties")
+        self.env.step({"action": "GetMapViewCameraProperties"})
+
+
+        cameraProps = self.env.last_event.metadata[
+            "actionReturn"
+        ]
+
+        print(cameraProps)
+
+        # m_Camera.transform.rotation = Quaternion.Euler((Vector3)cameraProps["rotation"]);
+        # m_Camera.transform.position = (Vector3)cameraProps["position"];
+        # m_Camera.orthographic = (bool)cameraProps["orthographic"];
+        # m_Camera.orthographicSize = (float)cameraProps["orthographicSize"];
+        cameraProps['action'] = "AddThirdPartyCamera"
+
+        target_object_type = self.task_info["object_type"]
+        self.env.step(
+            cameraProps
+        )
+        #
+        print("Add Third party camera")
+        print(self.env.last_event.metadata[
+                  "lastActionSuccess"
+              ])
+        print(self.env.last_event.metadata[
+                  "errorMessage"
+              ])
+
+
+
+    #     instance_detections2D
+
     @property
     def action_space(self):
         return gym.spaces.Discrete(len(self._actions))
@@ -281,6 +321,10 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         if ask_action==0:
             # ('expert takes step')
             self.env.step({"action":self.human_action})
+
+            print("actionReturn got back: " + self.env.last_event.metadata[
+                "actionReturn"
+            ])
 
             # exit()
             ask_action_str = 'start_asking'

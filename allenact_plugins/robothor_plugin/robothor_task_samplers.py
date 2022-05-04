@@ -20,6 +20,10 @@ from allenact_plugins.robothor_plugin.robothor_tasks import (
     NavToPartnerTask,
 )
 
+from ai2thor.local_actions import LocalActionRunner
+
+from allenact_plugins.robothor_plugin.ask_4_help_prompt import Ask4HelpActionRunner
+
 
 class ObjectNavTaskSampler(TaskSampler):
     def __init__(
@@ -49,6 +53,8 @@ class ObjectNavTaskSampler(TaskSampler):
         self.max_steps = max_steps
         self._action_space = action_space
         self.allow_flipping = allow_flipping
+
+        self.local_action_runner = None
 
         self.scenes_is_dataset = (dataset_first >= 0) or (dataset_last >= 0)
 
@@ -452,6 +458,21 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             self.episode_index = 0
         scene = self.scenes[self.scene_index]
         episode = self.episodes[scene][self.episode_index]
+
+        self.local_action_runner = Ask4HelpActionRunner(
+                enabled_actions =
+                [
+                    "MoveAhead",
+                    "RotateLeft",
+                    "RotateRight",
+                    "LookUp",
+                    "LookDown",
+                    "End"
+                ]
+        )
+
+        self.env_args['local_action_runner'] = self.local_action_runner
+
         if self.env is None:
             self.env = self._create_environment()
 
@@ -495,6 +516,9 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
         task_info["distance_to_target"] = episode.get("shortest_path_length")
         task_info["path_to_target"] = episode.get("shortest_path")
         task_info["object_type"] = episode["object_type"]
+
+        self.local_action_runner.target_object_type = episode["object_type"]
+
         task_info["id"] = episode["id"]
         if self.allow_flipping and random.random() > 0.5:
             task_info["mirrored"] = True
@@ -606,6 +630,7 @@ class PointNavTaskSampler(TaskSampler):
     ) -> None:
         self.rewards_config = rewards_config
         self.env_args = env_args
+
         self.scenes = scenes
         # self.object_types = object_types
         # self.scene_to_episodes = scene_to_episodes
@@ -915,6 +940,9 @@ class PointNavDatasetTaskSampler(TaskSampler):
 
         scene = self.scenes[self.scene_index]
         episode = self.episodes[scene][self.episode_index]
+
+        self.env_args["local_action_runner"] = local_action_runner
+
         if self.env is not None:
             if scene.replace("_physics", "") != self.env.scene_name.replace(
                 "_physics", ""

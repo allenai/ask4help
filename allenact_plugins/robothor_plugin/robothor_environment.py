@@ -46,6 +46,18 @@ class RoboThorEnvironment:
             height=480,
             agentCount=1,
             server_class=FifoServer,
+            renderInstanceSegmentation=True,
+            local_action_runner_params={
+                "enabled_actions":
+                    [
+                        "MoveAhead",
+                        "RotateLeft",
+                        "RotateRight",
+                        "LookUp",
+                        "LookDown",
+                        "End"
+                    ]
+            }
         )
 
         if "agentCount" in kwargs:
@@ -59,6 +71,7 @@ class RoboThorEnvironment:
             )
 
         recursive_update(self.config, kwargs)
+        print("+++++++ Controller constructors")
         self.controller = Controller(**self.config,)
 
         self.all_metadata_available = all_metadata_available
