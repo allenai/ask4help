@@ -491,6 +491,10 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 "spl": 0 if spl is None else spl,
             }
 
+            if not os.path.exists('./saved_trajs'):
+                os.mkdir('./saved_trajs')
+
+
             save_path = os.path.join('./saved_trajs',self.task_info['id'])
 
             if not os.path.exists(save_path):
@@ -502,11 +506,10 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 json.dump(metrics,fp)
 
             print (metrics.keys())
-            print (self.task_info['id'])
-            ## ## TODO : save the metrics as json file 
-            ## TODO : sort out trajectories to specifically do. 
-
+            print (self.task_info['id']) 
+            print ('trajectory over')
             exit()
+            ## TODO : sort out trajectories to specifically do. 
         return metrics
 
     def query_expert(self, end_action_only: bool = False, **kwargs) -> Tuple[int, bool]:
