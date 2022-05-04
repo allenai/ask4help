@@ -1,8 +1,10 @@
 import math
 from typing import Tuple, List, Dict, Any, Optional, Union, Sequence, cast
 
+import os
 import gym
 import numpy as np
+import json 
 
 from allenact.base_abstractions.misc import RLStepResult
 from allenact.base_abstractions.sensor import Sensor
@@ -260,6 +262,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.human_action = "ObjectNavHumanAction"
 
         self.penalty_given_once = False
+        self.expert_took_step = []
 
         # self.env.step({"action": "GetMapViewCameraProperties"})
         # cameraProps = self.env.last_event.metadata[
@@ -318,18 +321,13 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         ask_action = action['ask_action']
         ask_action = cast(int,ask_action)
 
+        self.expert_took_step.append(self.agent_asked_for_help)
+
         if ask_action==0:
-            # ('expert takes step')
-            self.env.step({"action":self.human_action})
-
-            print("actionReturn got back: " + self.env.last_event.metadata[
-                "actionReturn"
-            ])
-
-            # exit()
             ask_action_str = 'start_asking'
             self.agent_asked_for_help = True 
             self.help_asked_at_all = True
+            self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
             self.expert_action_span+=1
 
         if ask_action==1:
@@ -339,36 +337,6 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
             self.expert_action_span = 0 ##reset counter  
 
-
-        '''    
-        if ask_action==1:
-            # print ('start asking for help')
-            self.agent_asked_for_help = True
-            self.help_asked_at_all = True
-            self.expert_action_span+=1
-            self.asked_init_help_flag = False
-            # self.max_steps = 5e5
-
-        if ask_action==2:
-            # print ('stop asking')
-            self.agent_asked_for_help = False
-            self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
-            self.expert_action_span = 0 ##reset counter
-
-        if ask_action==0:
-            # print ('do nothing')
-            self.asked_init_help_flag = True
-
-        if ask_action==3:
-            # print ('ask policy called END')
-            # self._took_end_action = True
-            # self._success = self._is_goal_in_range()
-            # if not self._success:
-            #     self.false_stop = 1
-            # self.last_action_success = self._success
-            self.agent_asked_for_help = False
-            action_str = END
-        '''   
         action = action['nav_action']
         assert isinstance(action, int)
         action = cast(int, action)
@@ -376,7 +344,9 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         if self.agent_asked_for_help:
             self.num_steps_expert+=1
 
-        action_str = self.class_action_names()[action]
+        action_str = self.class_action_names()[action]    
+
+        print (action_str,'actual action being exec')    
 
         if self.mirror:
             if action_str == ROTATE_RIGHT:
@@ -387,7 +357,6 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.task_info["taken_actions"].append(action_str)
         self.task_info["taken_ask_actions"].append(ask_action_str)
 
-        
         if action_str == END:
             # if ask_action==3:
             #     print ('logic error in ask action END')
@@ -403,6 +372,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             pose = self.env.agent_state()
             self.path.append({k: pose[k] for k in ["x", "y", "z"]})
             self.task_info["followed_path"].append(pose)
+
         if len(self.path) > 1:
             self.travelled_distance += IThorEnvironment.position_dist(
                 p0=self.path[-1], p1=self.path[-2], ignore_y=True
@@ -552,12 +522,41 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 "longest_span_of_expert":self.max_expert_span,
                 "spl": 0 if spl is None else spl,
             }
+
+            if not os.path.exists('./saved_trajs'):
+                os.mkdir('./saved_trajs')
+
+
+            save_path = os.path.join('./saved_trajs',self.task_info['id'])
+
+            if not os.path.exists(save_path):
+                os.mkdir(save_path)
+
+            json_path = os.path.join(save_path,"metrics.json")
+
+            with open(json_path,"w") as fp:
+                json.dump(metrics,fp)
+
+            print (metrics.keys())
+            print (self.task_info['id']) 
+            print ('trajectory over')
+            exit()
+            ## TODO : sort out trajectories to specifically do. 
         return metrics
 
     def query_expert(self, end_action_only: bool = False, **kwargs) -> Tuple[int, bool]:
 
         if not self.agent_asked_for_help:
             return 0,False
+
+        else:
+            self.env.step({"action":self.human_action})
+            action_taken_by_human = self.env.last_event.metadata["actionReturn"]
+            return self.class_action_names().index(action_taken_by_human),True 
+
+
+        print ('expert logic error')
+        exit()
 
         if self._is_goal_in_range():
             return self.class_action_names().index(END), True
