@@ -60,7 +60,7 @@ class Ask4HelpActionRunner(object):
 
             print("instance mask")
 
-            id = [x['objectId'] for x in controller.last_event.metadata["objects"] if x['objectType']]
+            id = [x['objectId'] for x in controller.last_event.metadata["objects"] if x['objectType'] == self.target_object_type]
 
             print(id)
             print(controller.last_event.object_id_to_color[id[0]])
