@@ -323,6 +323,8 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
         self.expert_took_step.append(self.agent_asked_for_help)
 
+        ask_action = 0
+
         if ask_action==0:
             ask_action_str = 'start_asking'
             self.agent_asked_for_help = True 

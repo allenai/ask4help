@@ -10,7 +10,7 @@ import cv2
 import copy
 from ai2thor.interact import DefaultActions
 from ai2thor.interact_navigation import NavigationPrompt
-
+import numpy as np 
 
 class Ask4HelpActionRunner(object):
     def __init__(
@@ -61,15 +61,37 @@ class Ask4HelpActionRunner(object):
             print("instance mask")
 
             id = [x['objectId'] for x in controller.last_event.metadata["objects"] if x['objectType'] == self.target_object_type]
-
+            
             print(id)
+
+            instance_detect_dict = controller.last_event.object_id_to_color
+
+            # print (instance_detect_dict.keys())
+            if id[0] in instance_detect_dict:
+                bbox = instance_detect_dict[id[0]]
+                print (bbox)
+            else:
+                print ('didnt find it')    
+            # exit()
+
             print(controller.last_event.object_id_to_color[id[0]])
 
             # im = Image.fromarray(controller.last_event.third_party_camera_frames[0][:, :, :])
+
+            if len(controller.last_event.third_party_instance_segmentation_frames) > 0:
+                im_og = controller.last_event.third_party_instance_segmentation_frames[0]
+                im3 = controller.last_event.third_party_instance_segmentation_frames[0][..., ::-1][:, :, :]
+                Y,X = np.where(np.all(im_og==bbox,axis=2))
+                if np.all(im_og==bbox,axis=2).sum()==0:
+                    print ('missing')
+                x1,x2 = min(X),max(X)
+                y1,y2 = min(Y),max(Y)
+
             im = controller.last_event.third_party_camera_frames[0][..., ::-1][:, :, :]
-            cv2.namedWindow("top_down")
+
+            cv2.namedWindow("top_down",cv2.WINDOW_AUTOSIZE)
             cv2.setWindowProperty("top_down", cv2.WND_PROP_TOPMOST, 1)
-            cv2.imshow("top_down", im)
+            cv2.imshow("top_down", resized)
 
         print("Segmentation available")
         print(controller.last_event.instance_segmentation_frame is not None)
@@ -84,11 +106,21 @@ class Ask4HelpActionRunner(object):
         print("third party seg")
         print(len(controller.last_event.third_party_instance_segmentation_frames))
 
-        if len(controller.last_event.third_party_instance_segmentation_frames) > 0:
-            im3 = controller.last_event.third_party_instance_segmentation_frames[0][..., ::-1][:, :, :]
-            cv2.namedWindow("seg2")
-            cv2.setWindowProperty("seg2", cv2.WND_PROP_TOPMOST, 1)
-            cv2.imshow("seg2", im3)
+        # if len(controller.last_event.third_party_instance_segmentation_frames) > 0:
+        #     im_og = controller.last_event.third_party_instance_segmentation_frames[0]
+        #     im3 = controller.last_event.third_party_instance_segmentation_frames[0][..., ::-1][:, :, :]
+            # print (im3.shape,'segmentation shape')
+            # print (np.all(im3==bbox,axis=2).sum())
+            # print (np.all(im_og==bbox,axis=2).sum())
+            # Y,X = np.where(np.all(im_og==bbox,axis=2))
+            # if np.all(im_og==bbox,axis=2).sum()==0:
+            #     print ('missing')
+            # x1,x2 = min(X),max(X)
+            # y1,y2 = min(Y),max(Y)
+            # cv2.rectangle(cv2.UMat(im3),(x1,y1),(x2,y2),(255,0,0),-1)
+            # cv2.namedWindow("seg2")
+            # cv2.setWindowProperty("seg2", cv2.WND_PROP_TOPMOST, 1)
+            # cv2.imshow("seg2", im3)
 
         # TODO  perhaps opencv not needed, just a good resolution for THOR
         cv2.waitKey(1)
