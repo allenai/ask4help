@@ -468,7 +468,8 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
                     "LookUp",
                     "LookDown",
                     "End"
-                ]
+                ],
+            scale=1.5
         )
 
         self.env_args['local_action_runner'] = self.local_action_runner

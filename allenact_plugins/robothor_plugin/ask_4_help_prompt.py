@@ -15,12 +15,14 @@ import numpy as np
 class Ask4HelpActionRunner(object):
     def __init__(
             self,
-            enabled_actions
+            enabled_actions,
+            scale=1.0
     ):
         self.interactive_prompt = NavigationPrompt(
             default_actions=[DefaultActions[a] for a in enabled_actions]
         )
         self.target_object_type = ""
+        self.scale = scale
 
     def ObjectNavHumanAction(self, action, controller):
         img = controller.last_event.cv2img[:, :, :]
@@ -49,7 +51,9 @@ class Ask4HelpActionRunner(object):
 
         cv2.namedWindow("image")
         cv2.setWindowProperty("image", cv2.WND_PROP_TOPMOST, 1)
-        cv2.imshow("image", img)
+        cv2.moveWindow("image", 0, 0)
+        resized_main = self._resize_image(img, int(controller.width * self.scale), int(controller.height * self.scale))
+        cv2.imshow("image", resized_main)
 
         print("--------- 3rd party camera ")
         print(len(controller.last_event.third_party_camera_frames))
@@ -71,27 +75,35 @@ class Ask4HelpActionRunner(object):
                 bbox = instance_detect_dict[id[0]]
                 print (bbox)
             else:
-                print ('didnt find it')    
+                print ('----- didnt find it')
             # exit()
+            print(controller.last_event.object_id_to_color.keys())
+            if id[0] in controller.last_event.object_id_to_color:
+                print("id {} in object_id_to_color".format(id[0]))
+            else:
+                raise Exception("id {} not object_id_to_color".format(id[0]))
 
-            print(controller.last_event.object_id_to_color[id[0]])
+            target_segmentation_color = controller.last_event.object_id_to_color[id[0]]
+            print("------ id {} color {}".format(id[0], controller.last_event.object_id_to_color[id[0]]))
+            # print(controller.last_event.object_id_to_color[id[0]])
 
-            # im = Image.fromarray(controller.last_event.third_party_camera_frames[0][:, :, :])
+            resized = controller.last_event.third_party_camera_frames[0][..., ::-1][:, :, :]
 
             if len(controller.last_event.third_party_instance_segmentation_frames) > 0:
                 im_og = controller.last_event.third_party_instance_segmentation_frames[0]
                 im3 = controller.last_event.third_party_instance_segmentation_frames[0][..., ::-1][:, :, :]
-                Y,X = np.where(np.all(im_og==bbox,axis=2))
-                if np.all(im_og==bbox,axis=2).sum()==0:
-                    print ('missing')
-                x1,x2 = min(X),max(X)
-                y1,y2 = min(Y),max(Y)
+
+                # Y,X = np.where(np.all(im_og==bbox,axis=2))
+                # if np.all(im_og==bbox,axis=2).sum()==0:
+                #     print ('missing')
+                # x1,x2 = min(X),max(X)
+                # y1,y2 = min(Y),max(Y)
 
             im = controller.last_event.third_party_camera_frames[0][..., ::-1][:, :, :]
 
-            cv2.namedWindow("top_down",cv2.WINDOW_AUTOSIZE)
-            cv2.setWindowProperty("top_down", cv2.WND_PROP_TOPMOST, 1)
-            cv2.imshow("top_down", resized)
+            # cv2.namedWindow("top_down", cv2.WINDOW_AUTOSIZE)
+            # cv2.setWindowProperty("top_down", cv2.WND_PROP_TOPMOST, 1)
+            # cv2.imshow("top_down", resized)
 
         print("Segmentation available")
         print(controller.last_event.instance_segmentation_frame is not None)
@@ -105,6 +117,52 @@ class Ask4HelpActionRunner(object):
 
         print("third party seg")
         print(len(controller.last_event.third_party_instance_segmentation_frames))
+
+        if len(controller.last_event.third_party_instance_segmentation_frames) > 0:
+            im_og = controller.last_event.third_party_instance_segmentation_frames[0]
+            im3 = controller.last_event.third_party_instance_segmentation_frames[0][..., ::-1][:, :, :]
+            # cv2.namedWindow("seg2")
+            # cv2.setWindowProperty("seg2", cv2.WND_PROP_TOPMOST, 1)
+            # cv2.imshow("seg2", im3)
+
+            np.array(im3)
+
+            color = np.asarray(target_segmentation_color[::-1])
+
+            # x1,x2 = min(X),max(X)
+            # y1,y2 = min(Y),max(Y)
+
+            print("shape {}, color {}".format(np.shape(im3), color))
+            indices_y, indices_x =np.where(np.all(im3 == np.asarray(color), axis=2))
+
+            print("--- indices")
+            print(indices_y)
+            print(indices_x)
+
+            print("sample color")
+            print(im3[0, 0])
+
+            x1, x2 = min(indices_x), max(indices_x)
+            y1, y2 = min(indices_y), max(indices_y)
+
+            cv2.namedWindow("top_down", cv2.WINDOW_AUTOSIZE)
+            resized = cv2.rectangle(cv2.UMat(resized),(x1,y1),(x2,y2),(0,0,255),-1)
+            # cv2.namedWindow("seg2")
+            # cv2.setWindowProperty("seg2", cv2.WND_PROP_TOPMOST, 1)
+            # cv2.imshow("seg2", im3)
+            cv2.moveWindow("top_down", int(controller.width * self.scale), 0)
+            cv2.setWindowProperty("top_down", cv2.WND_PROP_TOPMOST, 1)
+
+            # cv2.imshow("top_down", resized)
+            resized = self._resize_image(resized, int(controller.width * self.scale), int(controller.height * self.scale))
+            cv2.imshow("top_down", resized)
+
+
+
+            # Y,X
+
+            # Y,X = np.where(np.all(im_og==bbox,axis=2))
+            # if np.all(im_og==bbox,axis=2).sum()==0:
 
         # if len(controller.last_event.third_party_instance_segmentation_frames) > 0:
         #     im_og = controller.last_event.third_party_instance_segmentation_frames[0]
@@ -136,3 +194,5 @@ class Ask4HelpActionRunner(object):
         event_copy.metadata["actionReturn"] = result
         return event_copy
 
+    def _resize_image(self, img, width, height):
+        return cv2.resize(img, (width, height), interpolation = cv2.INTER_AREA)
