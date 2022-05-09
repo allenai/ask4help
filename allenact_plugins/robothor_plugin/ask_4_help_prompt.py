@@ -77,7 +77,7 @@ class Ask4HelpActionRunner(object):
             else:
                 print ('----- didnt find it')
             # exit()
-            print(controller.last_event.object_id_to_color.keys())
+            # print(controller.last_event.object_id_to_color.keys())
             if id[0] in controller.last_event.object_id_to_color:
                 print("id {} in object_id_to_color".format(id[0]))
             else:
