@@ -502,6 +502,7 @@ class OnPolicyRunner(object):
                     mp_ctx=self.mp_ctx,
                     device=device,
                     max_sampler_processes_per_worker=max_sampler_processes_per_worker,
+                    parent_stdin=sys.stdin.fileno() if len(worker_ids) == 1 else None
                 ),
             )
             valid.start()
@@ -588,6 +589,7 @@ class OnPolicyRunner(object):
                     max_sampler_processes_per_worker=max_sampler_processes_per_worker,
                     distributed_port=distributed_port,
                     enforce_expert=inference_expert,
+                    parent_stdin=sys.stdin.fileno() if num_testers == 1 else None
                 ),
             )
 
