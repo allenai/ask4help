@@ -96,3 +96,10 @@ pip uninstall ai2thor
 python -m pip install git+https://github.com/allenai/ai2thor.git@ask4help
 ```
 
+To run the model: 
+
+```bash
+python main.py projects/objectnav_baselines/experiments/robothor/clip/objectnav_robothor_rgb_clipresnet50gru_finetune_ask_ddppo.py -o storage/debug --checkpoint ./storage/ask4help_model/checkpoints/Objectnav-RoboTHOR-RGB-ClipResNet50GRU-FINETUNE-DDPPO/human_trial_3/2022-05-02_12-53-36/exp_Objectnav-RoboTHOR-RGB-ClipResNet50GRU-FINETUNE-DDPPO_human_trial_3__stage_00__steps_000015003711.pt --eval
+```
+
+
