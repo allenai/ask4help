@@ -76,5 +76,23 @@ If you use this work, please cite our [paper](https://arxiv.org/abs/2008.12760):
   journal = {arXiv preprint arXiv:2008.12760},
 }
 ``` -->
+Installation Instructions:
 
+To begin, clone this repository locally
+```bash
+git clone -b rearrangement --single-branch git@github.com:allenai/embodied-clip.git embclip-rearrangement
+```
+Then run:
+```bash
+pip install -r requirements.txt ; pip install -r dev_requirements.txt
+```
+```bash
+pip install -r allenact_plugins/ithor_plugin/extra_requirements.txt ; pip install -r allenact_plugins/robothor_plugin/extra_requirements.txt
+```
+Now uninstall THOR and reinstall with the ask4help branch. 
+
+```bash
+pip uninstall ai2thor
+python -m pip install git+https://github.com/allenai/ai2thor.git@ask4help
+```
 
