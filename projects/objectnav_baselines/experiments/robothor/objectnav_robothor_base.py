@@ -21,7 +21,8 @@ class ObjectNavRoboThorBaseConfig(ObjectNavThorBaseConfig, ABC):
     DEFAULT_NUM_TRAIN_PROCESSES = 60 if torch.cuda.is_available() else 1
 
     TRAIN_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/train")
-    VAL_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/val")
+    # VAL_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/val")
+    VAL_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/scene_wise_eps_split/FloorPlan_Val1_1")
     # TEST_DATASET_DIR = os.path.join(os.getcwd(), "datasets/robothor-objectnav/test")
 
     TARGET_TYPES = tuple(

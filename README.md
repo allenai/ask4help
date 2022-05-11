@@ -1,4 +1,4 @@
-<div align="center">
+<!-- <div align="center">
     <img src="docs/img/AllenAct.svg" width="350" />
     <br>
     <i><h3>An open source framework for research in Embodied AI</h3></i>
@@ -75,6 +75,6 @@ If you use this work, please cite our [paper](https://arxiv.org/abs/2008.12760):
   year = {2020},
   journal = {arXiv preprint arXiv:2008.12760},
 }
-```
+``` -->
 
 

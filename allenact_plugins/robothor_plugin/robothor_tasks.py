@@ -262,7 +262,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.human_action = "ObjectNavHumanAction"
 
         self.penalty_given_once = False
-        self.expert_took_step = []
+        self.task_info["expert_took_step"] = []
 
         # self.env.step({"action": "GetMapViewCameraProperties"})
         # cameraProps = self.env.last_event.metadata[
@@ -298,8 +298,6 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                   "errorMessage"
               ])
 
-
-
     #     instance_detections2D
 
     @property
@@ -321,9 +319,8 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         ask_action = action['ask_action']
         ask_action = cast(int,ask_action)
 
-        self.expert_took_step.append(self.agent_asked_for_help)
+        self.task_info["expert_took_step"].append(self.agent_asked_for_help)
 
-        ask_action = 0
 
         if ask_action==0:
             ask_action_str = 'start_asking'
@@ -348,7 +345,8 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
         action_str = self.class_action_names()[action]    
 
-        print (action_str,'actual action being exec')    
+        if ask_action==1:
+            print (action_str, 'action taken by agent')    
 
         if self.mirror:
             if action_str == ROTATE_RIGHT:
@@ -542,7 +540,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             print (metrics.keys())
             print (self.task_info['id']) 
             print ('trajectory over')
-            exit()
+            # exit()
             ## TODO : sort out trajectories to specifically do. 
         return metrics
 

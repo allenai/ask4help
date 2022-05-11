@@ -71,21 +71,24 @@ class Ask4HelpActionRunner(object):
             instance_detect_dict = controller.last_event.object_id_to_color
 
             # print (instance_detect_dict.keys())
-            if id[0] in instance_detect_dict:
-                bbox = instance_detect_dict[id[0]]
-                print (bbox)
-            else:
-                print ('----- didnt find it')
+            if len(id)!=0:
+                if id[0] in instance_detect_dict:
+                    bbox = instance_detect_dict[id[0]]
+                    print (bbox)
+                else:
+                    print ('----- didnt find it')  
             # exit()
             # print(controller.last_event.object_id_to_color.keys())
-            if id[0] in controller.last_event.object_id_to_color:
-                print("id {} in object_id_to_color".format(id[0]))
-            else:
-                raise Exception("id {} not object_id_to_color".format(id[0]))
 
-            target_segmentation_color = controller.last_event.object_id_to_color[id[0]]
-            print("------ id {} color {}".format(id[0], controller.last_event.object_id_to_color[id[0]]))
-            # print(controller.last_event.object_id_to_color[id[0]])
+            if len(id)!=0:
+                if id[0] in controller.last_event.object_id_to_color:
+                    print("id {} in object_id_to_color".format(id[0]))
+                else:
+                    raise Exception("id {} not object_id_to_color".format(id[0]))
+
+                target_segmentation_color = controller.last_event.object_id_to_color[id[0]]
+                print("------ id {} color {}".format(id[0], controller.last_event.object_id_to_color[id[0]]))
+                # print(controller.last_event.object_id_to_color[id[0]])
 
             resized = controller.last_event.third_party_camera_frames[0][..., ::-1][:, :, :]
 
@@ -127,26 +130,29 @@ class Ask4HelpActionRunner(object):
 
             np.array(im3)
 
-            color = np.asarray(target_segmentation_color[::-1])
+            if len(id)!=0:
 
-            # x1,x2 = min(X),max(X)
-            # y1,y2 = min(Y),max(Y)
+                color = np.asarray(target_segmentation_color[::-1])
 
-            print("shape {}, color {}".format(np.shape(im3), color))
-            indices_y, indices_x =np.where(np.all(im3 == np.asarray(color), axis=2))
+                # x1,x2 = min(X),max(X)
+                # y1,y2 = min(Y),max(Y)
 
-            print("--- indices")
-            print(indices_y)
-            print(indices_x)
+                print("shape {}, color {}".format(np.shape(im3), color))
+                indices_y, indices_x =np.where(np.all(im3 == np.asarray(color), axis=2))
 
-            print("sample color")
-            print(im3[0, 0])
+                print("--- indices")
+                print(indices_y)
+                print(indices_x)
 
-            x1, x2 = min(indices_x), max(indices_x)
-            y1, y2 = min(indices_y), max(indices_y)
+                print("sample color")
+                print(im3[0, 0])
+
+                x1, x2 = min(indices_x), max(indices_x)
+                y1, y2 = min(indices_y), max(indices_y)
 
             cv2.namedWindow("top_down", cv2.WINDOW_AUTOSIZE)
-            resized = cv2.rectangle(cv2.UMat(resized),(x1,y1),(x2,y2),(0,0,255),-1)
+            if len(id)!=0:
+                resized = cv2.rectangle(cv2.UMat(resized),(x1,y1),(x2,y2),(0,0,255),-1)
             # cv2.namedWindow("seg2")
             # cv2.setWindowProperty("seg2", cv2.WND_PROP_TOPMOST, 1)
             # cv2.imshow("seg2", im3)
@@ -156,8 +162,6 @@ class Ask4HelpActionRunner(object):
             # cv2.imshow("top_down", resized)
             resized = self._resize_image(resized, int(controller.width * self.scale), int(controller.height * self.scale))
             cv2.imshow("top_down", resized)
-
-
 
             # Y,X
 
