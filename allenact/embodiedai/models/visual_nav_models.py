@@ -223,7 +223,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         self.expert_mask_embedder = FeatureEmbedding(input_size=2,output_size=prev_action_embed_size)
 
         if adaptive_reward:
-            self.reward_function_embedder = FeatureEmbedding(input_size=42,output_size=prev_action_embed_size*2)
+            self.reward_function_embedder = FeatureEmbedding(input_size=30,output_size=prev_action_embed_size*2)
         else:
             self.reward_function_embedder = None     
 

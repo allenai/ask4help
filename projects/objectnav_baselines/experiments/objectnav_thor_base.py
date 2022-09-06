@@ -44,7 +44,7 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
     DEFAULT_NUM_TRAIN_PROCESSES: Optional[int] = None
     DEFAULT_TRAIN_GPU_IDS = tuple(range(torch.cuda.device_count()))
     DEFAULT_VALID_GPU_IDS = (torch.cuda.device_count() - 1,)
-    DEFAULT_TEST_GPU_IDS = (torch.cuda.device_count() - 1,)
+    DEFAULT_TEST_GPU_IDS = tuple(range(torch.cuda.device_count())) #(torch.cuda.device_count() - 1,)
 
     TRAIN_DATASET_DIR: Optional[str] = None
     VAL_DATASET_DIR: Optional[str] = None

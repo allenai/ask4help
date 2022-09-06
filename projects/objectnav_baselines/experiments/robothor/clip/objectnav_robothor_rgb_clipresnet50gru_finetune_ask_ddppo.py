@@ -194,6 +194,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             auxiliary_uuids=cls.AUXILIARY_UUIDS,
             is_finetuned=True,
             adapt_belief=ADAPT_BELIEF,
+            adaptive_reward=False,
         )
 
     @classmethod

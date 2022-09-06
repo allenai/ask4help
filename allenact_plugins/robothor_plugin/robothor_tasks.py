@@ -254,6 +254,8 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.asked_init_help_flag = False
         self.expert_action_span = 0
         self.max_expert_span = 0
+        self.expert_ends_traj = False
+        self.expert_took_step = False 
 
         self.penalty_given_once = False
 
@@ -275,19 +277,21 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
         ask_action = action['ask_action']
         ask_action = cast(int,ask_action)
-
+        
+        ask_action = 1
         if ask_action==0:
             # print ('expert takes step')
             ask_action_str = 'start_asking'
             self.agent_asked_for_help = True 
             self.help_asked_at_all = True
             self.expert_action_span+=1
+            self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
 
         if ask_action==1:
             # print ('agent takes step')  
             ask_action_str = 'stop_asking'  
             self.agent_asked_for_help = False 
-            self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
+            # self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
             self.expert_action_span = 0 ##reset counter  
 
 
@@ -340,8 +344,11 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.task_info["taken_actions"].append(action_str)
         self.task_info["taken_ask_actions"].append(ask_action_str)
 
-        
+
         if action_str == END:
+
+            if self.expert_took_step:
+                self.expert_ends_traj = True 
             # if ask_action==3:
             #     print ('logic error in ask action END')
             #     exit()
@@ -356,6 +363,13 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             pose = self.env.agent_state()
             self.path.append({k: pose[k] for k in ["x", "y", "z"]})
             self.task_info["followed_path"].append(pose)
+
+        if ask_action==0:
+            self.expert_took_step = True  
+        else:
+            self.expert_took_step = False     
+
+
         if len(self.path) > 1:
             self.travelled_distance += IThorEnvironment.position_dist(
                 p0=self.path[-1], p1=self.path[-2], ignore_y=True
@@ -503,6 +517,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 "false_done_actions":self.false_stop,
                 "helped_asked_at_all":self.help_asked_at_all,
                 "longest_span_of_expert":self.max_expert_span,
+                "expert_ends_traj":self.expert_ends_traj,
                 "spl": 0 if spl is None else spl,
             }
         return metrics
@@ -511,6 +526,14 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
         if not self.agent_asked_for_help:
             return 0,False
+
+        '''
+        noise_control = np.random.choice([0,1],p=[0.8,0.2])
+        if noise_control==0:
+            action_idx = np.random.choice([0,1,2,4,5],p=[1/5]*5)
+            #return self.class_action_names().index(action_idx), True
+            return action_idx, True    
+        '''    
 
         if self._is_goal_in_range():
             return self.class_action_names().index(END), True

@@ -523,30 +523,32 @@ class ObjectNavDatasetTaskSampler(TaskSampler):
             "penalty_for_step_ask":    -0.01,
             }
 
+            # init_asked_configs = list(np.linspace(0,5,num=6,endpoint=True))
             
-            init_asked_configs = list(np.linspace(0,5,num=6,endpoint=True))
-            
-            failed_stop_configs = list(np.linspace(0,15,num=7,endpoint=True)) ##trying 13 different reward different configs
+            failed_stop_configs = list(np.linspace(1,30,num=30,endpoint=True)) ##trying 13 different reward different configs
             
             ##change adaptive reward embedding size in visual_nav_models.py
             
-            all_configs = [init_asked_configs,failed_stop_configs]
-            combined_configs = list(itertools.product(*all_configs))
+            #all_configs = [init_asked_configs,failed_stop_configs]
+            #combined_configs = list(itertools.product(*all_configs))
 
-            probs = [1/len(combined_configs)]*len(combined_configs)
+            # probs = [1/len(combined_configs)]*len(combined_configs)
+            probs = [1/len(failed_stop_configs)]*len(failed_stop_configs)
 
             if self.task_mode == 'Train':
-                config_idx = np.random.choice(np.arange(len(combined_configs)),1,p=probs)[0]
-                reward = combined_configs[config_idx]
-                init_ask,failed_stop = -1*reward[0],-1*reward[1]
+                config_idx = np.random.choice(np.arange(len(failed_stop_configs)),1,p=probs)[0]
+                reward = failed_stop_configs[config_idx]
+                # init_ask,failed_stop = -1*reward[0],-1*reward[1]
+                failed_stop = -1*reward
             else:
                 # config_idx = 15.0
-                failed_stop = -15.0
-                init_ask = -1.0
+                config_idx = failed_stop_configs.index(13.0)
+                failed_stop = -13.0
+                # init_ask = -1.0
 
             
             rewards_config['failed_stop_reward'] = failed_stop #-1*config_idx ### -1 is important
-            rewards_config['penalty_for_init_ask'] = init_ask
+            # rewards_config['penalty_for_init_ask'] = init_ask
 
             '''
             config_idx = np.random.choice(4,1,p=[0.25,0.25,0.25,0.25])[0]
