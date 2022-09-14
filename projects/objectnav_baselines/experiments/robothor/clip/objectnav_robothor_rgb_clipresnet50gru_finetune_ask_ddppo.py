@@ -70,6 +70,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
     CLIP_MODEL_TYPE = "RN50"
 
     ADAPT_BELIEF = True
+    ADD_TARGET_TO_RESIDUAL = True
 
     SENSORS = [
         RGBSensorThor(
@@ -230,6 +231,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             is_finetuned=True,
             adapt_belief=cls.ADAPT_BELIEF,
             adaptive_reward=False,
+            add_target_to_residual=cls.ADD_TARGET_TO_RESIDUAL,
         )
 
     @classmethod

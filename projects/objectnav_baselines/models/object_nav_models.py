@@ -173,6 +173,7 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
         end_action_in_ask=False,
         adapt_belief=False,
         adaptive_reward=False,
+        add_target_to_residual=False,
         # custom params
         rgb_resnet_preprocessor_uuid: Optional[str] = None,
         depth_resnet_preprocessor_uuid: Optional[str] = None,
@@ -180,6 +181,9 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
         resnet_compressor_hidden_out_dims: Tuple[int, int] = (128, 32),
         combiner_hidden_out_dims: Tuple[int, int] = (128, 32),
     ):
+        self.goal_dims = goal_dims
+        self.add_target_to_residual = add_target_to_residual
+
         super().__init__(
             action_space=action_space,
             observation_space=observation_space,
@@ -216,7 +220,6 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
                 resnet_compressor_hidden_out_dims,
                 combiner_hidden_out_dims,
             )
-
         self.goal_visual_encoder.requires_grad_(False)
 
         self.create_state_encoders(

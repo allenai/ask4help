@@ -94,6 +94,10 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
     `forward_encoder` function requires implementation.
     """
 
+    goal_dims: int
+    add_target_to_residual: bool
+    goal_visual_encoder: torch.nn.Module
+
     def __init__(
         self,
         action_space: gym.spaces.Discrete,
@@ -224,7 +228,9 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         )
 
         self.expert_encoder = RNNStateEncoder(
-            input_size + prev_action_embed_size,
+            input_size
+            + prev_action_embed_size
+            + (0 if not self.add_target_to_residual else self.goal_dims),
             self._hidden_size,
             num_layers=num_rnn_layers,
             rnn_type=rnn_type,
@@ -409,6 +415,11 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
         with torch.no_grad():
             # 1.1 use perception model (i.e. encoder) to get observation embeddings
             obs_embeds = self.forward_encoder(observations)
+            if self.add_target_to_residual:
+                goal_emb = self.goal_visual_encoder.get_object_type_encoding(
+                    observations
+                )  # used for residual GRU
+
             nsteps, nsamplers, _ = obs_embeds.shape
 
             prev_actions_embeds = self.prev_action_embedder(prev_actions["nav_action"])
@@ -436,6 +447,8 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             #    expert behavior.
             # 4. Ensure gradients flow through the actor head (as we want the residual belief to help in combination
             #    with the actor linear head).
+            # 5. TODO since the agent's beliefs might get messed up, should we add a target object type input to the
+            #  residual GRU?
 
             new_beliefs = []
 
@@ -447,7 +460,16 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 expert_action_embedding = self.prev_expert_action_embedder(
                     expert_action[step, :].unsqueeze(0)
                 )
-                res_input = torch.cat((cur_beliefs, expert_action_embedding), dim=-1)
+
+                if self.add_target_to_residual:
+                    current_goal_emb = goal_emb[step : step + 1, ...]
+                    res_input = torch.cat(
+                        (cur_beliefs, expert_action_embedding, current_goal_emb), dim=-1
+                    )
+                else:
+                    res_input = torch.cat(
+                        (cur_beliefs, expert_action_embedding), dim=-1
+                    )
 
                 beliefs_residual, residual_hidden_states = self.expert_encoder(
                     res_input, residual_hidden_states, masks_step
