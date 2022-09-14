@@ -447,8 +447,15 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             #    expert behavior.
             # 4. Ensure gradients flow through the actor head (as we want the residual belief to help in combination
             #    with the actor linear head).
-            # 5. TODO since the agent's beliefs might get messed up, should we add a target object type input to the
-            #  residual GRU?
+            # 5. Since the agent's beliefs might get messed up, we can also add a target object type input to the
+            #    residual GRU.
+            # 6. If the imitation loss seems to go down over time, we should augment the ask4help module with 3
+            #    possible modes: agent, expert, predicted/overridden expert (overridden expert incurs no penalty)
+            # 7. Training with 3 helper modes:
+            #    - phase 1: only PPO loss for agent/expert choices
+            #    - phase 2: only imitation from expert
+            #    - phase 3: only PPO for agent/expert/override choices
+            #    - iterate phase 2 and phase 3 for ever?
 
             new_beliefs = []
 
