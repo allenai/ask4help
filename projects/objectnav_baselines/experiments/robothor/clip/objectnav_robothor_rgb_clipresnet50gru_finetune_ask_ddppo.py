@@ -109,16 +109,12 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
         # "penalty_for_ask": -0.3,
         # }
 
-        # alternative design: what if, when supervisor detects the agent is confused, we sample from the agent's
-        # distribution with the most likely action disabled? in that scenario there's no cost in using the expert,
-        # because there's no expert.
-
         self.REWARD_CONFIG = {
             "step_penalty": -0.00,
             "goal_success_reward": 0.00,
-            "failed_stop_reward": -10.00,  # Jordi: only applying it when no expert asked (else 0)
+            "failed_stop_reward": -10.00,
             "shaping_weight": 0.00,
-            "penalty_for_init_ask": -1.00,  # Jordi: should we have a very low initial cost and increase it as more questions come?
+            "penalty_for_init_ask": -1.00,
             "penalty_for_ask_recurring": -0.00,  # -0.1/4,##decreasing recurring cost
             "penalty_for_step_ask": -0.01,
         }
