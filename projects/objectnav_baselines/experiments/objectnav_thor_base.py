@@ -44,7 +44,9 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
     DEFAULT_NUM_TRAIN_PROCESSES: Optional[int] = None
     DEFAULT_TRAIN_GPU_IDS = tuple(range(torch.cuda.device_count()))
     DEFAULT_VALID_GPU_IDS = (torch.cuda.device_count() - 1,)
-    DEFAULT_TEST_GPU_IDS = tuple(range(torch.cuda.device_count())) #(torch.cuda.device_count() - 1,)
+    DEFAULT_TEST_GPU_IDS = tuple(
+        range(torch.cuda.device_count())
+    )  # (torch.cuda.device_count() - 1,)
 
     TRAIN_DATASET_DIR: Optional[str] = None
     VAL_DATASET_DIR: Optional[str] = None
@@ -125,7 +127,7 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
             )
             sampler_devices = self.sampler_devices
         elif mode == "valid":
-            nprocesses = 1
+            nprocesses = 0
             devices = (
                 [torch.device("cpu")]
                 if not torch.cuda.is_available()
@@ -145,11 +147,11 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
             raise NotImplementedError("mode must be 'train', 'valid', or 'test'.")
 
         sensors = [*self.SENSORS]
-        '''
+        """
         # 
         if mode != "train":
             sensors = [s for s in sensors if not isinstance(s, ExpertActionSensor)]
-        '''
+        """
 
         sensor_preprocessor_graph = (
             SensorPreprocessorGraph(
@@ -287,7 +289,7 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
         res["loop_dataset"] = True
         res["allow_flipping"] = True
         res["randomize_materials_in_training"] = self.randomize_train_materials
-        res['task_mode'] = 'Train'
+        res["task_mode"] = "Train"
         return res
 
     def valid_task_sampler_args(
@@ -305,12 +307,12 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
             devices=devices,
             seeds=seeds,
             deterministic_cudnn=deterministic_cudnn,
-            include_expert_sensor=True, ## only for ask for help
+            include_expert_sensor=True,  ## only for ask for help
             allow_oversample=False,
         )
         res["scene_directory"] = self.VAL_DATASET_DIR
         res["loop_dataset"] = False
-        res['task_mode'] = 'Valid'
+        res["task_mode"] = "Valid"
         return res
 
     def test_task_sampler_args(
@@ -352,12 +354,12 @@ class ObjectNavThorBaseConfig(ObjectNavBaseConfig, ABC):
                 devices=devices,
                 seeds=seeds,
                 deterministic_cudnn=deterministic_cudnn,
-                include_expert_sensor=True, ##only for ask for help
+                include_expert_sensor=True,  ##only for ask for help
                 allow_oversample=False,
             )
             res["env_args"]["all_metadata_available"] = False
             res["rewards_config"] = {**res["rewards_config"], "shaping_weight": 0}
             res["scene_directory"] = self.TEST_DATASET_DIR
             res["loop_dataset"] = False
-            res['task_mode'] = 'Test'
+            res["task_mode"] = "Test"
             return res

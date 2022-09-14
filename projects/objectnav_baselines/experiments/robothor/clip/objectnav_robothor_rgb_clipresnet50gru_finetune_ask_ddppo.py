@@ -38,6 +38,7 @@ from allenact.embodiedai.aux_losses.losses import (
 
 from allenact.algorithms.onpolicy_sync.losses import PPO
 from allenact.algorithms.onpolicy_sync.losses.ppo import PPOConfig
+from allenact.algorithms.onpolicy_sync.losses.imitation import ActorImitation
 
 from allenact.utils.experiment_utils import (
     Builder,
@@ -68,6 +69,8 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
 
     CLIP_MODEL_TYPE = "RN50"
 
+    ADAPT_BELIEF = True
+
     SENSORS = [
         RGBSensorThor(
             height=ObjectNavRoboThorBaseConfig.SCREEN_SIZE,
@@ -80,7 +83,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
         GoalObjectTypeThorSensor(
             object_types=ObjectNavRoboThorBaseConfig.TARGET_TYPES,
         ),
-        ExpertActionSensor(nactions=len(ObjectNavTask.class_action_names()), ),
+        ExpertActionSensor(nactions=len(ObjectNavTask.class_action_names()),),
     ]
 
     AUXILIARY_UUIDS = [
@@ -96,7 +99,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
 
     def __init__(self):
 
-        super().__init__()
+        super().__init__(num_train_processes=40 if torch.cuda.device_count() > 0 else 1)
 
         # self.REWARD_CONFIG = {
         # "step_penalty": -0.01,
@@ -106,40 +109,77 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
         # "penalty_for_ask": -0.3,
         # }
 
+        # alternative design: what if, when supervisor detects the agent is confused, we sample from the agent's
+        # distribution with the most likely action disabled? in that scenario there's no cost in using the expert,
+        # because there's no expert.
+
         self.REWARD_CONFIG = {
-        "step_penalty":            -0.00,
-        "goal_success_reward":      0.00,
-        "failed_stop_reward":      -10.00,
-        "shaping_weight":           0.00,
-        "penalty_for_init_ask":    -1.00, 
-        "penalty_for_ask_recurring": -0.00,#-0.1/4,##decreasing recurring cost
-        "penalty_for_step_ask":    -0.01,
+            "step_penalty": -0.00,
+            "goal_success_reward": 0.00,
+            "failed_stop_reward": -10.00,  # Jordi: only applying it when no expert asked (else 0)
+            "shaping_weight": 0.00,
+            "penalty_for_init_ask": -1.00,  # Jordi: should we have a very low initial cost and increase it as more questions come?
+            "penalty_for_ask_recurring": -0.00,  # -0.1/4,##decreasing recurring cost
+            "penalty_for_step_ask": -0.01,
         }
 
-        self.ADAPTIVE_REWARD = False  
-
+        self.ADAPTIVE_REWARD = False
 
     @classmethod
     def tag(cls):
         return "Objectnav-RoboTHOR-RGB-ClipResNet50GRU-FINETUNE-DDPPO"
 
-
     def training_pipeline(self, **kwargs):
         # PPO
-        ppo_steps = int(15000000)
-        lr = 3e-4
+        ppo_steps = int(30_000_000)
+        lr = 3e-4 * self.num_train_processes / 60
         num_mini_batch = 1
         update_repeats = 4
-        num_steps = 128//2
-        save_interval = 5000000
-        log_interval = 10000 if torch.cuda.is_available() else 1
+        num_steps = 128 // 2
+        save_interval = 5_000_000
+        log_interval = 10_000 if torch.cuda.is_available() else 1
         gamma = 0.99
         use_gae = True
         gae_lambda = 0.95
         max_grad_norm = 0.5
 
-        named_losses = {"ppo_loss": (PPO(**PPOConfig), 1.0)}
+        named_losses = {
+            "ppo_loss": (PPO(**PPOConfig), 1.0),
+        }
+
+        if self.ADAPT_BELIEF:
+            named_losses["imitation"] = (ActorImitation(), 1.0)
+
         named_losses = self._update_with_auxiliary_losses(named_losses)
+
+        if not self.ADAPT_BELIEF:
+            stages = [
+                PipelineStage(
+                    loss_names=list(named_losses.keys()),
+                    max_stage_steps=ppo_steps,
+                    loss_weights=[
+                        named_losses[name][1] for name in list(named_losses.keys())
+                    ],
+                )
+            ]
+        else:
+            stages = [
+                PipelineStage(
+                    loss_names=sorted(list(set(named_losses.keys()) - {"imitation"})),
+                    max_stage_steps=5_000_000,
+                    loss_weights=[
+                        named_losses[name][1]
+                        for name in sorted(
+                            list(set(named_losses.keys()) - {"imitation"})
+                        )
+                    ],
+                ),
+                PipelineStage(
+                    loss_names=["imitation"],
+                    max_stage_steps=25_000_000,
+                    loss_weights=[named_losses["imitation"][1]],
+                ),
+            ]
 
         return TrainingPipeline(
             save_interval=save_interval,
@@ -154,17 +194,11 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             use_gae=use_gae,
             gae_lambda=gae_lambda,
             advance_scene_rollout_period=self.ADVANCE_SCENE_ROLLOUT_PERIOD,
-            pipeline_stages=[
-                PipelineStage(
-                    loss_names=list(named_losses.keys()),
-                    max_stage_steps=ppo_steps,
-                    loss_weights=[val[1] for val in named_losses.values()],
-                )
-            ],
+            pipeline_stages=stages,
             lr_scheduler_builder=Builder(
                 LambdaLR, {"lr_lambda": LinearDecay(steps=ppo_steps)}
             ),
-        )    
+        )
 
     @classmethod
     def create_model(cls, **kwargs) -> nn.Module:
@@ -177,11 +211,16 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             None,
         )
 
-        action_space = gym.spaces.Dict({"nav_action": gym.spaces.Discrete(len(ObjectNavTask.class_action_names())),
-                                     "ask_action": gym.spaces.Discrete(2)})  
-                                    ##NEW ACTIONS : 0 means expert step, 1 means agent step
-                                    #OLD ACTIONS : 2 means stop asking, 1 means start asking, 0 means do nothing
-        ADAPT_BELIEF = False                             
+        action_space = gym.spaces.Dict(
+            {
+                "nav_action": gym.spaces.Discrete(
+                    len(ObjectNavTask.class_action_names())
+                ),
+                "ask_action": gym.spaces.Discrete(2),
+            }
+        )
+        ##NEW ACTIONS : 0 means expert step, 1 means agent step
+        # OLD ACTIONS : 2 means stop asking, 1 means start asking, 0 means do nothing
 
         return ResnetTensorObjectNavActorCritic(
             action_space=action_space,  # gym.spaces.Discrete(len(ObjectNavTask.class_action_names())),
@@ -193,7 +232,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             goal_dims=32,
             auxiliary_uuids=cls.AUXILIARY_UUIDS,
             is_finetuned=True,
-            adapt_belief=ADAPT_BELIEF,
+            adapt_belief=cls.ADAPT_BELIEF,
             adaptive_reward=False,
         )
 
@@ -236,14 +275,8 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
                 CPCA16Loss(subsample_rate=0.2,),  # TODO: test its effects
                 0.05 * aux_loss_total_weight,  # should times 2
             ),
-            FrequencyLoss.UUID: (
-                FrequencyLoss(),
-                0.05*aux_loss_total_weight,
-            ),
-            SupImitationLoss.UUID: (
-                SupImitationLoss(),
-                0.05*aux_loss_total_weight,
-            )
+            FrequencyLoss.UUID: (FrequencyLoss(), 0.05 * aux_loss_total_weight,),
+            SupImitationLoss.UUID: (SupImitationLoss(), 0.05 * aux_loss_total_weight,),
         }
 
         named_losses.update(
@@ -257,4 +290,3 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             )
 
         return named_losses
-

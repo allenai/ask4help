@@ -169,9 +169,9 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
         multiple_beliefs=False,
         beliefs_fusion: Optional[FusionType] = None,
         auxiliary_uuids: Optional[List[str]] = None,
-        is_finetuned = False,
+        is_finetuned=False,
         end_action_in_ask=False,
-        adapt_belief = False,
+        adapt_belief=False,
         adaptive_reward=False,
         # custom params
         rgb_resnet_preprocessor_uuid: Optional[str] = None,
@@ -216,6 +216,9 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
                 resnet_compressor_hidden_out_dims,
                 combiner_hidden_out_dims,
             )
+
+        self.goal_visual_encoder.requires_grad_(False)
+
         self.create_state_encoders(
             obs_embed_size=self.goal_visual_encoder.output_dims,
             num_rnn_layers=num_rnn_layers,
@@ -236,17 +239,19 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
         self.adaptive_reward = adaptive_reward
 
         if self.is_finetuned:
-            self.create_ask4_help_module(prev_action_embed_size=action_embed_size,
-            num_rnn_layers=num_rnn_layers,
-            rnn_type=rnn_type,
-            adaptive_reward=self.adaptive_reward,
+            self.create_ask4_help_module(
+                prev_action_embed_size=action_embed_size,
+                num_rnn_layers=num_rnn_layers,
+                rnn_type=rnn_type,
+                adaptive_reward=self.adaptive_reward,
             )
 
         if self.adapt_belief:
-            self.create_expert_encoder(input_size=self._hidden_size,
-            prev_action_embed_size=action_embed_size,
-            num_rnn_layers=num_rnn_layers,
-            rnn_type=rnn_type,
+            self.create_expert_encoder(
+                input_size=self._hidden_size,
+                prev_action_embed_size=action_embed_size,
+                num_rnn_layers=num_rnn_layers,
+                rnn_type=rnn_type,
             )
 
         self.train()
@@ -327,7 +332,7 @@ class ResnetTensorGoalEncoder(nn.Module):
         )
 
     def compress_resnet(self, observations):
-       
+
         return self.resnet_compressor(observations[self.resnet_uuid])
 
     def distribute_target(self, observations):

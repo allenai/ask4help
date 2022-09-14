@@ -1,6 +1,6 @@
 """Defining imitation losses for actor critic type models."""
 
-from typing import Dict, cast, Optional
+from typing import Dict, cast, Optional, Any
 from collections import OrderedDict
 
 import torch
@@ -35,6 +35,7 @@ class Imitation(AbstractActorCriticLoss):
         distribution: CategoricalDistr,
         expert_actions: torch.Tensor,
         expert_actions_masks: torch.Tensor,
+        extras: Optional[Any],
     ):
         assert isinstance(distribution, CategoricalDistr) or (
             isinstance(distribution, ConditionalDistr)
@@ -116,6 +117,7 @@ class Imitation(AbstractActorCriticLoss):
                     cast(CategoricalDistr, actor_critic_output.distributions),
                     expert_actions,
                     expert_actions_masks,
+                    actor_critic_output.extras,
                 )
 
                 should_report_loss = expert_successes.item() != 0
@@ -149,7 +151,10 @@ class Imitation(AbstractActorCriticLoss):
                     ready_actions[group_name] = expert_action
 
                     current_loss, expert_successes = self.group_loss(
-                        cd, expert_action, expert_action_masks,
+                        cd,
+                        expert_action,
+                        expert_action_masks,
+                        actor_critic_output.extras,
                     )
 
                     should_report_loss = (
@@ -208,3 +213,38 @@ class Imitation(AbstractActorCriticLoss):
             if should_report_loss
             else {},
         )
+
+
+class ActorImitation(Imitation):
+    """Expert imitation loss."""
+
+    def group_loss(
+        self,
+        distribution: Distr,
+        expert_actions: torch.Tensor,
+        expert_actions_masks: torch.Tensor,
+        extras: Optional[Any],
+    ):
+        expert_successes = expert_actions_masks.sum()
+
+        log_probs = CategoricalDistr(extras["model_action_logits"]).log_prob(
+            cast(torch.LongTensor, expert_actions)
+        )
+        assert (
+            log_probs.shape[: len(expert_actions_masks.shape)]
+            == expert_actions_masks.shape
+        )
+
+        # Add dimensions to `expert_actions_masks` on the right to allow for masking
+        # if necessary.
+        len_diff = len(log_probs.shape) - len(expert_actions_masks.shape)
+        assert len_diff >= 0
+        expert_actions_masks = expert_actions_masks.view(
+            *expert_actions_masks.shape, *((1,) * len_diff)
+        )
+
+        group_loss = -(expert_actions_masks * log_probs).sum() / torch.clamp(
+            expert_successes, min=1
+        )
+
+        return group_loss, expert_successes

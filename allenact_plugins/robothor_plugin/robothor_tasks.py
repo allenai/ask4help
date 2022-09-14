@@ -255,7 +255,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.expert_action_span = 0
         self.max_expert_span = 0
         self.expert_ends_traj = False
-        self.expert_took_step = False 
+        self.expert_took_step = False
 
         self.penalty_given_once = False
 
@@ -275,27 +275,26 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
     def _step(self, action: Union[int, Sequence[int]]) -> RLStepResult:
 
-        ask_action = action['ask_action']
-        ask_action = cast(int,ask_action)
-        
-        ask_action = 1
-        if ask_action==0:
+        ask_action = action["ask_action"]
+        ask_action = cast(int, ask_action)
+
+        # ask_action = 1
+        if ask_action == 0:
             # print ('expert takes step')
-            ask_action_str = 'start_asking'
-            self.agent_asked_for_help = True 
+            ask_action_str = "start_asking"
+            self.agent_asked_for_help = True
             self.help_asked_at_all = True
-            self.expert_action_span+=1
-            self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
+            self.expert_action_span += 1
+            self.max_expert_span = max(self.expert_action_span, self.max_expert_span)
 
-        if ask_action==1:
-            # print ('agent takes step')  
-            ask_action_str = 'stop_asking'  
-            self.agent_asked_for_help = False 
+        if ask_action == 1:
+            # print ('agent takes step')
+            ask_action_str = "stop_asking"
+            self.agent_asked_for_help = False
             # self.max_expert_span = max(self.expert_action_span,self.max_expert_span)
-            self.expert_action_span = 0 ##reset counter  
+            self.expert_action_span = 0  ##reset counter
 
-
-        '''    
+        """    
         if ask_action==1:
             # print ('start asking for help')
             self.agent_asked_for_help = True
@@ -323,15 +322,14 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             # self.last_action_success = self._success
             self.agent_asked_for_help = False
             action_str = END
-        '''   
-                
+        """
 
-        action = action['nav_action']
+        action = action["nav_action"]
         assert isinstance(action, int)
         action = cast(int, action)
 
         if self.agent_asked_for_help:
-            self.num_steps_expert+=1
+            self.num_steps_expert += 1
 
         action_str = self.class_action_names()[action]
 
@@ -344,11 +342,10 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         self.task_info["taken_actions"].append(action_str)
         self.task_info["taken_ask_actions"].append(ask_action_str)
 
-
         if action_str == END:
 
             if self.expert_took_step:
-                self.expert_ends_traj = True 
+                self.expert_ends_traj = True
             # if ask_action==3:
             #     print ('logic error in ask action END')
             #     exit()
@@ -364,11 +361,10 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
             self.path.append({k: pose[k] for k in ["x", "y", "z"]})
             self.task_info["followed_path"].append(pose)
 
-        if ask_action==0:
-            self.expert_took_step = True  
+        if ask_action == 0:
+            self.expert_took_step = True
         else:
-            self.expert_took_step = False     
-
+            self.expert_took_step = False
 
         if len(self.path) > 1:
             self.travelled_distance += IThorEnvironment.position_dist(
@@ -443,7 +439,7 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
 
         reward += self.shaping()
 
-        '''
+        """
         if self.help_asked_at_all and (self.asked_init_help_flag is False):
             # print ('give initial ask penalty')
             if not self.penalty_given_once:
@@ -454,26 +450,28 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 # print ('given recurring')
                 reward += self.reward_configs['penalty_for_ask_recurring']    
             self.asked_init_help_flag = True
-        '''
-         ## for 2 actions
+        """
+        ## for 2 actions
         if self.help_asked_at_all:
             if not self.penalty_given_once:
-                reward += self.reward_configs['penalty_for_init_ask']
-                self.penalty_given_once = True     
-           
+                reward += self.reward_configs["penalty_for_init_ask"]
+                self.penalty_given_once = True
+
         if self.agent_asked_for_help:
             # print ('step ask penalty')
-            reward += self.reward_configs['penalty_for_step_ask']
+            reward += self.reward_configs["penalty_for_step_ask"]
 
         if self._took_end_action:
             if self._success:
                 reward += self.reward_configs["goal_success_reward"]
             else:
+                # if not self.help_asked_at_all:
                 reward += self.reward_configs["failed_stop_reward"]
-                
+
         elif self.num_steps_taken() + 1 >= self.max_steps:
-            self.false_stop=1
-            reward += self.reward_configs['failed_stop_reward']
+            self.false_stop = 1
+            # if not self.help_asked_at_all:
+            reward += self.reward_configs["failed_stop_reward"]
             # reward += self.reward_configs.get("reached_max_steps_reward", 0.0)
 
         self._rewards.append(float(reward))
@@ -506,18 +504,18 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
                 travelled_distance=self.travelled_distance,
             )
 
-            expert_action_ratio = self.num_steps_expert/self.num_steps_taken()
+            expert_action_ratio = self.num_steps_expert / self.num_steps_taken()
 
             metrics = {
                 **metrics,
                 "success": self._success,
                 "total_reward": np.sum(self._rewards),
                 "dist_to_target": dist2tget,
-                "part_taken_over_by_expert":expert_action_ratio,
-                "false_done_actions":self.false_stop,
-                "helped_asked_at_all":self.help_asked_at_all,
-                "longest_span_of_expert":self.max_expert_span,
-                "expert_ends_traj":self.expert_ends_traj,
+                "part_taken_over_by_expert": expert_action_ratio,
+                "false_done_actions": self.false_stop,
+                "helped_asked_at_all": self.help_asked_at_all,
+                "longest_span_of_expert": self.max_expert_span,
+                "expert_ends_traj": self.expert_ends_traj,
                 "spl": 0 if spl is None else spl,
             }
         return metrics
@@ -525,15 +523,15 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
     def query_expert(self, end_action_only: bool = False, **kwargs) -> Tuple[int, bool]:
 
         if not self.agent_asked_for_help:
-            return 0,False
+            return 0, False
 
-        '''
+        """
         noise_control = np.random.choice([0,1],p=[0.8,0.2])
         if noise_control==0:
             action_idx = np.random.choice([0,1,2,4,5],p=[1/5]*5)
             #return self.class_action_names().index(action_idx), True
             return action_idx, True    
-        '''    
+        """
 
         if self._is_goal_in_range():
             return self.class_action_names().index(END), True
@@ -688,5 +686,3 @@ class NavToPartnerTask(Task[RoboThorEnvironment]):
             **super().metrics(),
             "success": self.reached_terminal_state(),
         }
-
-
