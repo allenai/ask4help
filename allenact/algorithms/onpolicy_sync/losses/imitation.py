@@ -62,7 +62,9 @@ class Imitation(AbstractActorCriticLoss):
             expert_successes, min=1
         )
 
-        return group_loss, expert_successes
+        info = {}
+
+        return group_loss, expert_successes, info
 
     def loss(  # type: ignore
         self,
@@ -113,7 +115,7 @@ class Imitation(AbstractActorCriticLoss):
                     .view(*expert_actions_and_mask.shape[:-1], 1)
                 )
 
-                total_loss, expert_successes = self.group_loss(
+                total_loss, expert_successes, info = self.group_loss(
                     cast(CategoricalDistr, actor_critic_output.distributions),
                     expert_actions,
                     expert_actions_masks,
@@ -121,6 +123,9 @@ class Imitation(AbstractActorCriticLoss):
                 )
 
                 should_report_loss = expert_successes.item() != 0
+
+                for key in info:
+                    losses[key] = info[key]
             else:
                 expert_actions = su.unflatten(
                     self.expert_sensor.observation_space, observations["expert_action"]
@@ -150,7 +155,7 @@ class Imitation(AbstractActorCriticLoss):
 
                     ready_actions[group_name] = expert_action
 
-                    current_loss, expert_successes = self.group_loss(
+                    current_loss, expert_successes, info = self.group_loss(
                         cd,
                         expert_action,
                         expert_action_masks,
@@ -165,6 +170,8 @@ class Imitation(AbstractActorCriticLoss):
 
                     if expert_successes.item() != 0:
                         losses[group_name + "_cross_entropy"] = current_loss.item()
+                        for key in info:
+                            losses[group_name + f"_{key}"] = info[key]
                         total_loss = total_loss + current_loss
         elif "expert_policy" in observations:
             if self.expert_sensor is None or not self.expert_sensor.use_groups:
@@ -230,6 +237,9 @@ class ActorImitation(Imitation):
         log_probs = CategoricalDistr(extras["model_action_logits"]).log_prob(
             cast(torch.LongTensor, expert_actions)
         )
+        raw_log_probs = CategoricalDistr(extras["raw_action_logits"]).log_prob(
+            cast(torch.LongTensor, expert_actions)
+        )
         assert (
             log_probs.shape[: len(expert_actions_masks.shape)]
             == expert_actions_masks.shape
@@ -247,4 +257,10 @@ class ActorImitation(Imitation):
             expert_successes, min=1
         )
 
-        return group_loss, expert_successes
+        raw_loss = -(expert_actions_masks * raw_log_probs).sum() / torch.clamp(
+            expert_successes, min=1
+        )
+
+        info = {"raw_model_imitation": raw_loss.item()}
+
+        return group_loss, expert_successes, info

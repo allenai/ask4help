@@ -30,6 +30,12 @@ from allenact.base_abstractions.distributions import Distr
 FusionType = TypeVar("FusionType", bound=Fusion)
 
 
+PRETRAINED_AGENT_PATH = os.path.join(
+    "storage",
+    "exp_Objectnav-RoboTHOR-RGB-ClipResNet50GRU-DDPPO_embedded_fix__stage_00__steps_000110213221.pt",
+)
+
+
 class succ_pred_model(nn.Module):
     def __init__(self, input_size):
         super(succ_pred_model, self).__init__()
@@ -97,6 +103,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
     goal_dims: int
     add_target_to_residual: bool
     goal_visual_encoder: torch.nn.Module
+    pretrained_agent_loaded: bool = False
 
     def __init__(
         self,
@@ -406,6 +413,12 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
 
         assert self.is_finetuned
 
+        if not self.pretrained_agent_loaded:
+            print(f"Loading {PRETRAINED_AGENT_PATH}")
+            self.load_state_dict(torch.load(PRETRAINED_AGENT_PATH, map_location="cpu",))
+            self.to(observations["expert_action"].device)
+            self.pretrained_agent_loaded = True
+
         expert_action_obs = observations["expert_action"]
         expert_action = expert_action_obs[:, :, 0]
         expert_action_mask = expert_action_obs[:, :, 1]
@@ -418,7 +431,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             if self.add_target_to_residual:
                 goal_emb = self.goal_visual_encoder.get_object_type_encoding(
                     observations
-                )  # used for residual GRU
+                ).detach()  # used for residual GRU
 
             nsteps, nsamplers, _ = obs_embeds.shape
 
@@ -598,7 +611,10 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 for aux_uuid in self.auxiliary_uuids
             }
             if self.auxiliary_uuids is not None
-            else {"model_action_logits": actor_pred_distr.logits}
+            else {
+                "model_action_logits": actor_pred_distr.logits,
+                "raw_action_logits": self.actor(beliefs).logits,
+            }
         )
 
         if self.multiple_beliefs:
