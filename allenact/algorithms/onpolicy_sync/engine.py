@@ -1028,19 +1028,17 @@ class OnPolicyTrainer(OnPolicyRLEngine):
                         total_loss = total_loss + loss_weight * current_loss
 
                     for key, value in current_info.items():
-                        info[f"{loss_name}/{key}"] = self.distributed_weighted_sum(
-                            value, bsize / aggregate_bsize
-                        )
+                        info[f"{loss_name}/{key}"] = value
 
-                    for key, value in per_epoch_info.items():
-                        value = self.distributed_weighted_sum(
-                            value, bsize / aggregate_bsize
-                        )
-                        if self.training_pipeline.current_stage.update_repeats > 1:
-                            info[f"{loss_name}/{key}_epoch{e:02d}"] = value
-                            info[f"{loss_name}/{key}_combined"] = value
-                        else:
-                            info[f"{loss_name}/{key}"] = value
+                    # for key, value in per_epoch_info.items():
+                    #     value = self.distributed_weighted_sum(
+                    #         value, bsize / aggregate_bsize
+                    #     )
+                    #     if self.training_pipeline.current_stage.update_repeats > 1:
+                    #         info[f"{loss_name}/{key}_epoch{e:02d}"] = value
+                    #         info[f"{loss_name}/{key}_combined"] = value
+                    #     else:
+                    #         info[f"{loss_name}/{key}"] = value
 
                 assert (
                     total_loss is not None
