@@ -462,13 +462,12 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
             #    with the actor linear head).
             # 5. Since the agent's beliefs might get messed up, we can also add a target object type input to the
             #    residual GRU.
+            # TODO:
             # 6. If the imitation loss seems to go down over time, we should augment the ask4help module with 3
             #    possible modes: agent, expert, predicted/overridden expert (overridden expert incurs no penalty)
-            # 7. Training with 3 helper modes:
-            #    - phase 1: only PPO loss for agent/expert choices
+            #    - phase 1: only PPO loss for agent/expert/override choices
             #    - phase 2: only imitation from expert
-            #    - phase 3: only PPO for agent/expert/override choices
-            #    - iterate phase 2 and phase 3 for ever?
+            #    - iterate phase 1 and phase 2 for ever?
 
             new_beliefs = []
 
@@ -478,7 +477,10 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 cur_beliefs = beliefs[step : step + 1, ...]
                 masks_step = masks[step : step + 1, ...]
                 expert_action_embedding = self.prev_expert_action_embedder(
-                    expert_action[step, :].unsqueeze(0)
+                    # expert_action[step, :].unsqueeze(0)
+                    prev_actions["nav_action"][step, :].unsqueeze(
+                        0
+                    )  # we should try to guess the next expert action based on the last taken action
                 )
 
                 if self.add_target_to_residual:
@@ -499,6 +501,7 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                     step : step + 1, ...
                 ].unsqueeze(-1)
 
+                # We only override whenever the expert is on:
                 new_beliefs.append(
                     cur_beliefs + beliefs_residual * cur_expert_action_mask
                 )
