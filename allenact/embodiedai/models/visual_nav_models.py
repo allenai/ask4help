@@ -104,6 +104,8 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
     add_target_to_residual: bool
     goal_visual_encoder: torch.nn.Module
     pretrained_agent_loaded: bool = False
+    dagger_or_tf_steps: float
+    dagger_num_samplers: int
 
     def __init__(
         self,
@@ -582,6 +584,35 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 expert_action_idx = expert_action[step, samp].item()
                 expert_logits[step, samp, expert_action_idx] = 999
 
+        sample_ratio = -1
+
+        if self.dagger_or_tf_steps >= 0 and nsteps == 1:
+            tf_steps = 1_000_000
+            dagger_steps = 3_000_000
+
+            if self.dagger_or_tf_steps < tf_steps:
+                # teacher forcing
+                sample_ratio = 1.0
+            elif self.dagger_or_tf_steps < tf_steps + dagger_steps:
+                # dagger
+                sample_ratio = max(
+                    min(1.0 - (self.dagger_or_tf_steps - tf_steps) / dagger_steps, 1.0),
+                    0.0,
+                )
+                sample_mask = (
+                    torch.distributions.bernoulli.Bernoulli(torch.tensor(sample_ratio))
+                    .sample(expert_action_mask.shape)
+                    .long()
+                    .to(expert_action_mask.device)
+                )
+                expert_action_mask = expert_action_mask * sample_mask
+            else:
+                # student forcing
+                sample_ratio = 0.0
+                expert_action_mask = torch.zeros_like(expert_action_mask)
+
+            self.dagger_or_tf_steps += self.dagger_num_samplers * 0.95
+
         expert_action_mask = expert_action_mask.unsqueeze(-1)
 
         action_logits = (
@@ -619,6 +650,9 @@ class VisualNavActorCritic(ActorCriticModel[CategoricalDistr]):
                 "raw_action_logits": self.actor(beliefs).logits,
             }
         )
+
+        if sample_ratio >= 0:
+            extras["teacher_force_ratio"] = sample_ratio
 
         if self.multiple_beliefs:
             extras[MultiAuxTaskNegEntropyLoss.UUID] = task_weights

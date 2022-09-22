@@ -152,7 +152,7 @@ class ObjectNavRoboThorClipRGBResidualDaggerExperimentConfig(
         stages = [
             PipelineStage(
                 loss_names=["imitation"],
-                max_stage_steps=5_000_000,
+                max_stage_steps=10_000_000,
                 loss_weights=[named_losses["imitation"][1]],
             ),
         ]
@@ -176,14 +176,13 @@ class ObjectNavRoboThorClipRGBResidualDaggerExperimentConfig(
             ),
         )
 
-    @classmethod
-    def create_model(cls, **kwargs) -> nn.Module:
+    def create_model(self, **kwargs) -> nn.Module:
 
-        has_rgb = any(isinstance(s, RGBSensor) for s in cls.SENSORS)
-        has_depth = any(isinstance(s, DepthSensor) for s in cls.SENSORS)
+        has_rgb = any(isinstance(s, RGBSensor) for s in self.SENSORS)
+        has_depth = any(isinstance(s, DepthSensor) for s in self.SENSORS)
 
         goal_sensor_uuid = next(
-            (s.uuid for s in cls.SENSORS if isinstance(s, GoalObjectTypeThorSensor)),
+            (s.uuid for s in self.SENSORS if isinstance(s, GoalObjectTypeThorSensor)),
             None,
         )
 
@@ -206,11 +205,13 @@ class ObjectNavRoboThorClipRGBResidualDaggerExperimentConfig(
             depth_resnet_preprocessor_uuid="depth_clip_resnet" if has_depth else None,
             hidden_size=512,
             goal_dims=32,
-            auxiliary_uuids=cls.AUXILIARY_UUIDS,
+            auxiliary_uuids=self.AUXILIARY_UUIDS,
             is_finetuned=True,
-            adapt_belief=cls.ADAPT_BELIEF,
+            adapt_belief=self.ADAPT_BELIEF,
             adaptive_reward=False,
-            add_target_to_residual=cls.ADD_TARGET_TO_RESIDUAL,
+            add_target_to_residual=self.ADD_TARGET_TO_RESIDUAL,
+            dagger_or_tf_steps=0,
+            dagger_num_samplers=self.num_train_processes,
         )
 
     @classmethod

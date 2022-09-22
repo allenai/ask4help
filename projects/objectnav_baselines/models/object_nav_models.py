@@ -174,6 +174,8 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
         adapt_belief=False,
         adaptive_reward=False,
         add_target_to_residual=False,
+        dagger_or_tf_steps=-1,
+        dagger_num_samplers=1,
         # custom params
         rgb_resnet_preprocessor_uuid: Optional[str] = None,
         depth_resnet_preprocessor_uuid: Optional[str] = None,
@@ -183,6 +185,8 @@ class ResnetTensorObjectNavActorCritic(VisualNavActorCritic):
     ):
         self.goal_dims = goal_dims
         self.add_target_to_residual = add_target_to_residual
+        self.dagger_or_tf_steps = dagger_or_tf_steps
+        self.dagger_num_samplers = dagger_num_samplers
 
         super().__init__(
             action_space=action_space,

@@ -69,7 +69,7 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
 
     CLIP_MODEL_TYPE = "RN50"
 
-    ADAPT_BELIEF = True
+    ADAPT_BELIEF = False
     ADD_TARGET_TO_RESIDUAL = True
 
     SENSORS = [
@@ -144,39 +144,17 @@ class ObjectNavRoboThorClipRGBPPOExperimentConfig(
             "ppo_loss": (PPO(**PPOConfig), 1.0),
         }
 
-        if self.ADAPT_BELIEF:
-            named_losses["imitation"] = (ActorImitation(), 1.0)
-
         named_losses = self._update_with_auxiliary_losses(named_losses)
 
-        if not self.ADAPT_BELIEF:
-            stages = [
-                PipelineStage(
-                    loss_names=list(named_losses.keys()),
-                    max_stage_steps=ppo_steps,
-                    loss_weights=[
-                        named_losses[name][1] for name in list(named_losses.keys())
-                    ],
-                )
-            ]
-        else:
-            stages = [
-                PipelineStage(
-                    loss_names=sorted(list(set(named_losses.keys()) - {"imitation"})),
-                    max_stage_steps=5_000_000,
-                    loss_weights=[
-                        named_losses[name][1]
-                        for name in sorted(
-                            list(set(named_losses.keys()) - {"imitation"})
-                        )
-                    ],
-                ),
-                PipelineStage(
-                    loss_names=["imitation"],
-                    max_stage_steps=25_000_000,
-                    loss_weights=[named_losses["imitation"][1]],
-                ),
-            ]
+        stages = [
+            PipelineStage(
+                loss_names=list(named_losses.keys()),
+                max_stage_steps=ppo_steps,
+                loss_weights=[
+                    named_losses[name][1] for name in list(named_losses.keys())
+                ],
+            )
+        ]
 
         return TrainingPipeline(
             save_interval=save_interval,
