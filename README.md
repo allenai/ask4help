@@ -7,7 +7,7 @@ By [Kunal Pratap Singh](https://kunalmessi10.github.io/), [Luca Weihs](https://l
 
 This is the official code base for Ask4Help presented in Neurips, 2022.
 
-![](storage/ask4help_teaser.pdf)
+![](docs/img/Ask4HelpSketch_teaser.jpg)
 
 ### Installations
 
