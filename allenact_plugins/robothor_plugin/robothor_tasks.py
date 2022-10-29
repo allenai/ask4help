@@ -278,7 +278,6 @@ class ObjectNavTask(Task[RoboThorEnvironment]):
         ask_action = action['ask_action']
         ask_action = cast(int,ask_action)
         
-        ask_action = 1
         if ask_action==0:
             # print ('expert takes step')
             ask_action_str = 'start_asking'
