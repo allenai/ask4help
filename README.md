@@ -2,7 +2,7 @@
 
 By [Kunal Pratap Singh](https://kunalmessi10.github.io/), [Luca Weihs](https://lucaweihs.github.io/), [Alvaro Herrasti](https://scholar.google.com/citations?user=89Knd5YAAAAJ&hl=en), [Jonghyun Choi](https://ppolon.github.io/), [Aniruddha Kembhavi](https://anikem.github.io/), [Roozbeh Mottaghi](https://roozbehm.info/)
 
-[Paper]() | [BibTex](#citation) | [Talk] (https://recorder-v3.slideslive.com/?share=75288&s=b604cd5a-0b22-4f7b-b4bc-1b5779be827b)
+[Paper]() | [BibTex](#citation) | [Talk](https://recorder-v3.slideslive.com/?share=75288&s=b604cd5a-0b22-4f7b-b4bc-1b5779be827b)
 
 
 This is the official code base for our paper presented in Neurips, 2022.
