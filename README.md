@@ -69,7 +69,7 @@ If you find this project useful in your research, consider citing our work:
 ```
 @inproceedings{singh2022ask4help,
   author = {Singh, Kunal Pratap and Weihs, Luca and Herrasti, Alvaro and Kembhavi, Aniruddha and Mottaghi, Roozbeh},
-  title = {Pushing it out of the Way: Interactive Visual Navigation},
+  title = {Ask4Help: Learning to Leverage an Expert for Embodied Tasks},
   booktitle = {Neurips},	    
   year = {2022}
 }
