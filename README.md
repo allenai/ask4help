@@ -5,7 +5,7 @@ By [Kunal Pratap Singh](https://kunalmessi10.github.io/), [Luca Weihs](https://l
 [Paper]() | [BibTex](#citation) | [Talk](https://recorder-v3.slideslive.com/?share=75288&s=b604cd5a-0b22-4f7b-b4bc-1b5779be827b)
 
 
-This is the official code base for our paper presented in Neurips, 2022.
+This is the official code base for our paper presented in NeurIPS, 2022.
 
 ![](docs/img/Ask4Help.png)
 
@@ -70,7 +70,7 @@ If you find this project useful in your research, consider citing our work:
 @inproceedings{singh2022ask4help,
   author = {Singh, Kunal Pratap and Weihs, Luca and Herrasti, Alvaro and Kembhavi, Aniruddha and Mottaghi, Roozbeh},
   title = {Ask4Help: Learning to Leverage an Expert for Embodied Tasks},
-  booktitle = {Neurips},	    
+  booktitle = {NeurIPS},	    
   year = {2022}
 }
 ```
