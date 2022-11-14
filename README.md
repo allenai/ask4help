@@ -63,6 +63,19 @@ objectnav_robothor_rgb_clipresnet50gru_finetune_ask_adaptive_reward_ddppo.py
 --restart_pipeline
 ```
 
+### Evaluation
+We evaluate the ask4help policies in RoboTHOR validation environments. To run the evaluation:
+```
+python main.py
+-b project/objectnav_baselines/experiments/robothor/clip
+objectnav_robothor_rgb_clipresnet50gru_finetune_ask_ddppo.py 
+-o storage/ask4help_train 
+--checkpoint $PATH_TO_CKPT$ 
+--extra_tag first_run_eval 
+--eval
+```
+
+
 ### Citation
 If you find this project useful in your research, consider citing our work:
 
