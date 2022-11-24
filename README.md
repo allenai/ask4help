@@ -76,6 +76,7 @@ objectnav_robothor_rgb_clipresnet50gru_finetune_ask_ddppo.py
 ```
 
 ### Qualitative Example
+We present a qualitative example, where the agent is looking for laptop. Note how the agent struggles to get past the chair to get close enough to the laptop. The Ask4Help policy requests expert assistance, denoted by the progress bar turning red. The expert helps the agent get around the chair, and hence successfully end the episode. 
 
 https://user-images.githubusercontent.com/28543966/203671906-c782a33f-8ce8-4fb7-b0f2-c9bcb5e57a52.mp4
 
