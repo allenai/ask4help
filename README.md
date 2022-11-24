@@ -75,6 +75,11 @@ objectnav_robothor_rgb_clipresnet50gru_finetune_ask_ddppo.py
 --eval
 ```
 
+### Qualitative Example
+
+https://user-images.githubusercontent.com/28543966/203671906-c782a33f-8ce8-4fb7-b0f2-c9bcb5e57a52.mp4
+
+
 
 ### Citation
 If you find this project useful in your research, consider citing our work:
